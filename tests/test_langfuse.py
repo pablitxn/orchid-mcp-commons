@@ -9,13 +9,13 @@ import pytest
 
 import orchid_commons.observability.langfuse as langfuse_module
 from orchid_commons.config import AppSettings
-from orchid_commons.errors import MissingDependencyError
 from orchid_commons.observability.langfuse import (
     LangfuseClientSettings,
     create_langfuse_client,
     get_default_langfuse_client,
     set_default_langfuse_client,
 )
+from orchid_commons.runtime.errors import MissingDependencyError
 
 
 class FakeObservation:

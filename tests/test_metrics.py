@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from orchid_commons.metrics import (
+from orchid_commons.observability.metrics import (
     NoopMetricsRecorder,
     PrometheusMetricsRecorder,
     configure_prometheus_metrics,

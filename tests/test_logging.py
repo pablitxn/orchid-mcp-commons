@@ -7,7 +7,7 @@ import logging
 from io import StringIO
 
 from orchid_commons.config import AppSettings
-from orchid_commons.logging import (
+from orchid_commons.observability.logging import (
     bootstrap_logging,
     bootstrap_logging_from_app_settings,
     correlation_scope,
