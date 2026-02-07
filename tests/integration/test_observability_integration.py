@@ -5,14 +5,14 @@ from __future__ import annotations
 import pytest
 
 from orchid_commons.config.models import ObservabilitySettings
-from orchid_commons.metrics import get_metrics_recorder
+from orchid_commons.db import create_sqlite_resource
+from orchid_commons.observability.metrics import get_metrics_recorder
 from orchid_commons.observability.otel import (
     OpenTelemetryMetricsRecorder,
     bootstrap_observability,
     request_span,
     shutdown_observability,
 )
-from orchid_commons.db import create_sqlite_resource
 
 pytestmark = pytest.mark.integration
 

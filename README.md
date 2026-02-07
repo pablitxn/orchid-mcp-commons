@@ -23,7 +23,10 @@ brew install uv
 uv sync --extra all --extra dev
 
 # Install only specific extras
-uv sync --extra sql           # PostgreSQL support
+uv sync --extra db            # PostgreSQL + Redis + MongoDB support
+uv sync --extra sql           # PostgreSQL-only support (legacy alias)
+uv sync --extra redis         # Redis-only support
+uv sync --extra mongodb       # MongoDB-only support
 uv sync --extra blob          # MinIO/S3 support
 uv sync --extra observability # Prometheus + OpenTelemetry + Langfuse support
 ```
@@ -146,7 +149,7 @@ payload = report.to_dict()  # JSON-serializable
 ```
 
 Returned payload includes:
-- per-resource check status + latency (`sqlite`, `postgres`, `minio`, `r2`, etc.)
+- per-resource check status + latency (`sqlite`, `postgres`, `redis`, `mongodb`, `minio`, `r2`, etc.)
 - aggregate status (`ok`, `degraded`, `down`)
 - readiness/liveness booleans
 - optional `otel`/`langfuse` checks when enabled
@@ -256,18 +259,23 @@ uv run ruff check . && uv run ruff format --check . && uv run pytest
 
 | Extra           | Description                        | Dependencies                          |
 | --------------- | ---------------------------------- | ------------------------------------- |
+| `db`            | SQL + cache + document databases   | asyncpg, redis, motor                 |
 | `sql`           | PostgreSQL async support           | asyncpg                               |
+| `redis`         | Redis async cache support          | redis                                 |
+| `mongodb`       | MongoDB async support              | motor                                 |
 | `blob`          | Object storage (MinIO/S3)          | minio                                 |
 | `observability` | Tracing and metrics                | prometheus-client, opentelemetry-api, opentelemetry-sdk, opentelemetry-exporter-otlp, langfuse |
-| `all`           | All of the above                   | sql + blob + observability            |
+| `all`           | All of the above                   | db + blob + observability             |
 | `dev`           | Development tools                  | pytest, ruff, mypy                    |
 
-## SQL Providers
+## Database Providers
 
 - `SqliteResource` (`aiosqlite`) for local/dev and lightweight deployments.
 - `PostgresProvider` (`asyncpg` pool) for production-like workloads.
-- Both expose a common query API (`execute`, `executemany`, `fetchone`, `fetchall`,
-  `transaction`, `health_check`, `close`) to keep repository code homogeneous.
+- `RedisCache` (`redis.asyncio`) for key/value cache workflows.
+- `MongoDbResource` (`motor`) for document storage workflows.
+- SQL providers share a common query API (`execute`, `executemany`, `fetchone`, `fetchall`,
+  `transaction`, `health_check`, `close`), while Redis/MongoDB add lightweight native helpers.
 
 ## Integration and Migration Docs
 

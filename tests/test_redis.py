@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 
 import orchid_commons.db.redis as redis_module
+from orchid_commons.config.resources import RedisSettings
 from orchid_commons.db.redis import RedisCache, create_redis_cache
-from orchid_commons.settings import RedisSettings
 
 
 class FakeRedisClient:

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from orchid_commons import ResourceManager
-from orchid_commons.settings import PostgresSettings, ResourceSettings
+from orchid_commons.config.resources import PostgresSettings, ResourceSettings
 from orchid_commons.db import PostgresProvider, create_postgres_provider
 
 
@@ -228,7 +228,7 @@ class TestPostgresResourceManagerIntegration:
             assert settings.dsn == "postgresql://test:test@localhost:5432/test"
             return created
 
-        from orchid_commons.manager import register_factory
+        from orchid_commons.runtime.manager import register_factory
 
         register_factory("postgres", "postgres", fake_factory)
 
