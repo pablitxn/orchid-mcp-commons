@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 from orchid_commons.blob.r2 import create_r2_profile
 from orchid_commons.blob.s3 import S3BlobStorage
-from orchid_commons.settings import MinioSettings, R2Settings
+from orchid_commons.config.resources import MinioSettings, R2Settings
 
 
 def _install_fake_minio(monkeypatch) -> list[object]:

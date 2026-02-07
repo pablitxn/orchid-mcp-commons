@@ -8,7 +8,7 @@ import pytest
 
 import orchid_commons.observability.otel as otel
 from orchid_commons.config.models import ObservabilitySettings
-from orchid_commons.metrics import get_metrics_recorder, set_metrics_recorder
+from orchid_commons.observability.metrics import get_metrics_recorder, set_metrics_recorder
 
 
 class FakeInstrument:

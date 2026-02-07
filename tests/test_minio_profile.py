@@ -14,7 +14,7 @@ from orchid_commons.blob.minio import (
     minio_local_dev_settings,
     register_minio_factory,
 )
-from orchid_commons.settings import MinioSettings, ResourceSettings
+from orchid_commons.config.resources import MinioSettings, ResourceSettings
 
 
 def make_minio_client(*, bucket_exists: bool = True) -> Mock:

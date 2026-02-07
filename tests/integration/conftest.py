@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import pytest
 
-from orchid_commons.settings import MinioSettings, PostgresSettings, SqliteSettings
+from orchid_commons.config.resources import MinioSettings, PostgresSettings, SqliteSettings
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
