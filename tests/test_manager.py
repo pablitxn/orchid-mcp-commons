@@ -3,7 +3,8 @@
 import pytest
 
 from orchid_commons import ResourceManager
-from orchid_commons.errors import ResourceNotFoundError
+from orchid_commons.runtime import manager as manager_module
+from orchid_commons.runtime.errors import ResourceNotFoundError
 
 
 class TestResourceManager:
@@ -32,3 +33,19 @@ class TestResourceManager:
         await manager.close_all()
 
         assert not manager.has("test")
+
+    def test_builtin_factories_include_redis_and_mongodb(self) -> None:
+        original_factories = dict(manager_module._RESOURCE_FACTORIES)
+        original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
+        try:
+            manager_module._RESOURCE_FACTORIES.clear()
+            manager_module._BUILTIN_FACTORIES_REGISTERED = False
+            manager_module._ensure_builtin_factories()
+
+            assert {"sqlite", "postgres", "redis", "mongodb", "minio"}.issubset(
+                manager_module._RESOURCE_FACTORIES.keys()
+            )
+        finally:
+            manager_module._RESOURCE_FACTORIES.clear()
+            manager_module._RESOURCE_FACTORIES.update(original_factories)
+            manager_module._BUILTIN_FACTORIES_REGISTERED = original_registered

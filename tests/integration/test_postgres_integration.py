@@ -7,7 +7,7 @@ import asyncio
 import pytest
 
 from orchid_commons import ResourceManager
-from orchid_commons.settings import ResourceSettings
+from orchid_commons.config.resources import ResourceSettings
 from orchid_commons.db import PostgresProvider, create_postgres_provider
 
 pytestmark = pytest.mark.integration

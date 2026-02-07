@@ -7,9 +7,9 @@ from pathlib import Path
 import pytest
 
 from orchid_commons.config import load_config
-from orchid_commons.settings import (
-    MongoDbSettings,
+from orchid_commons.config.resources import (
     MinioSettings,
+    MongoDbSettings,
     R2Settings,
     RedisSettings,
     ResourceSettings,
