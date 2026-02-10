@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -154,6 +156,29 @@ class MinioSettings(BaseModel):
         scheme = "https" if self.secure else "http"
         return f"{scheme}://{self.endpoint}"
 
+    @classmethod
+    def local_dev(
+        cls,
+        *,
+        bucket: str = "orchid-dev",
+        endpoint: str = "localhost:9000",
+        access_key: str = "minioadmin",
+        secret_key: str = "minioadmin",
+        secure: bool = False,
+        region: str | None = None,
+        create_bucket_if_missing: bool = True,
+    ) -> MinioSettings:
+        """Build defaults that work with local docker-compose MinIO."""
+        return cls(
+            endpoint=endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            bucket=bucket,
+            create_bucket_if_missing=create_bucket_if_missing,
+            secure=secure,
+            region=region,
+        )
+
 
 class RedisSettings(BaseModel):
     """Redis cache connection settings."""
@@ -301,6 +326,18 @@ class R2Settings(BaseModel):
             "region": self.region,
         }
 
+    def to_minio_settings(self) -> MinioSettings:
+        """Adapt R2 profile into the same shape expected by MinIO callers."""
+        return MinioSettings(
+            endpoint=self.resolved_endpoint,
+            access_key=self.access_key,
+            secret_key=self.secret_key,
+            bucket=self.bucket,
+            create_bucket_if_missing=self.create_bucket_if_missing,
+            secure=self.secure,
+            region=self.region,
+        )
+
     def presign_base_url(self) -> str:
         scheme = "https" if self.secure else "http"
         return f"{scheme}://{self.resolved_endpoint}"
@@ -327,8 +364,65 @@ class MultiBucketSettings(BaseModel):
     secure: bool = Field(default=False, description="Use HTTPS")
     region: str | None = Field(default=None, description="AWS region")
 
+    def get_bucket(self, alias: str) -> str:
+        """Resolve alias to physical bucket name."""
+        if alias not in self.buckets:
+            raise KeyError(f"Unknown bucket alias: {alias!r}")
+        return self.buckets[alias]
 
-class ResourcesSettings(BaseModel):
+    def to_s3_client_kwargs(self) -> dict[str, str | bool | None]:
+        """Return kwargs compatible with S3-compatible clients like MinIO."""
+        return {
+            "endpoint": self.endpoint,
+            "access_key": self.access_key,
+            "secret_key": self.secret_key,
+            "secure": self.secure,
+            "region": self.region,
+        }
+
+    def presign_base_url(self) -> str:
+        scheme = "https" if self.secure else "http"
+        return f"{scheme}://{self.endpoint}"
+
+    @classmethod
+    def local_dev(
+        cls,
+        *,
+        buckets: dict[str, str] | None = None,
+        endpoint: str = "localhost:9000",
+        access_key: str = "minioadmin",
+        secret_key: str = "minioadmin",
+        secure: bool = False,
+        region: str | None = None,
+        create_buckets_if_missing: bool = True,
+    ) -> MultiBucketSettings:
+        """Build defaults that work with local docker-compose MinIO."""
+        default_buckets = buckets or {"default": "orchid-dev"}
+        return cls(
+            endpoint=endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            buckets=default_buckets,
+            create_buckets_if_missing=create_buckets_if_missing,
+            secure=secure,
+            region=region,
+        )
+
+
+class PgVectorSettings(BaseModel):
+    """pgvector extension settings."""
+
+    model_config = ConfigDict(frozen=True)
+
+    table: str = Field(default="embeddings", min_length=1, description="Table name")
+    dimensions: int = Field(default=1536, ge=1, description="Vector dimensions")
+    distance_metric: str = Field(
+        default="cosine", min_length=1, description="Distance metric"
+    )
+    ivfflat_lists: int = Field(default=100, ge=1, description="IVFFlat index lists")
+
+
+class ResourceSettings(BaseModel):
     """External resource connections."""
 
     model_config = ConfigDict(frozen=True)
@@ -341,7 +435,181 @@ class ResourcesSettings(BaseModel):
     qdrant: QdrantSettings | None = Field(default=None)
     minio: MinioSettings | None = Field(default=None)
     r2: R2Settings | None = Field(default=None)
+    pgvector: PgVectorSettings | None = Field(default=None)
     multi_bucket: MultiBucketSettings | None = Field(default=None)
+
+    @classmethod
+    def from_env(cls, prefix: str = "ORCHID_") -> ResourceSettings:
+        """Build settings from environment variables.
+
+        Each resource is constructed only when its required env vars are set.
+        Optional fields fall back to class defaults when the env var is absent.
+        """
+
+        def env(name: str) -> str | None:
+            return os.getenv(f"{prefix}{name}")
+
+        def env_bool(name: str, default: bool = False) -> bool:
+            value = env(name)
+            if value is None:
+                return default
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+
+        sqlite = None
+        sqlite_path = env("SQLITE_DB_PATH")
+        if sqlite_path:
+            sqlite = SqliteSettings(db_path=Path(sqlite_path))
+
+        postgres = None
+        postgres_dsn = env("POSTGRES_DSN")
+        if postgres_dsn:
+            postgres = PostgresSettings(
+                dsn=postgres_dsn,
+                min_pool_size=int(env("POSTGRES_MIN_POOL_SIZE") or 1),
+                max_pool_size=int(env("POSTGRES_MAX_POOL_SIZE") or 10),
+                command_timeout_seconds=float(env("POSTGRES_COMMAND_TIMEOUT_SECONDS") or 60.0),
+            )
+
+        redis = None
+        redis_url = env("REDIS_URL")
+        if redis_url:
+            default_ttl = env("REDIS_DEFAULT_TTL_SECONDS")
+            socket_timeout = env("REDIS_SOCKET_TIMEOUT_SECONDS")
+            connect_timeout = env("REDIS_CONNECT_TIMEOUT_SECONDS")
+            redis = RedisSettings(
+                url=redis_url,
+                key_prefix=env("REDIS_KEY_PREFIX") or "",
+                default_ttl_seconds=(int(default_ttl) if default_ttl is not None else None),
+                encoding=env("REDIS_ENCODING") or "utf-8",
+                decode_responses=env_bool("REDIS_DECODE_RESPONSES", True),
+                socket_timeout_seconds=(
+                    float(socket_timeout) if socket_timeout is not None else None
+                ),
+                connect_timeout_seconds=(
+                    float(connect_timeout) if connect_timeout is not None else None
+                ),
+                health_check_interval_seconds=float(
+                    env("REDIS_HEALTH_CHECK_INTERVAL_SECONDS") or 15.0
+                ),
+            )
+
+        mongodb = None
+        mongodb_uri = env("MONGODB_URI")
+        mongodb_database = env("MONGODB_DATABASE")
+        if mongodb_uri and mongodb_database:
+            mongodb = MongoDbSettings(
+                uri=mongodb_uri,
+                database=mongodb_database,
+                server_selection_timeout_ms=int(
+                    env("MONGODB_SERVER_SELECTION_TIMEOUT_MS") or 2000
+                ),
+                connect_timeout_ms=int(env("MONGODB_CONNECT_TIMEOUT_MS") or 2000),
+                ping_timeout_seconds=float(env("MONGODB_PING_TIMEOUT_SECONDS") or 2.0),
+                app_name=env("MONGODB_APP_NAME"),
+            )
+
+        rabbitmq = None
+        rabbitmq_url = env("RABBITMQ_URL")
+        if rabbitmq_url:
+            rabbitmq = RabbitMqSettings(
+                url=rabbitmq_url,
+                prefetch_count=int(env("RABBITMQ_PREFETCH_COUNT") or 50),
+                connect_timeout_seconds=float(env("RABBITMQ_CONNECT_TIMEOUT_SECONDS") or 10.0),
+                heartbeat_seconds=int(env("RABBITMQ_HEARTBEAT_SECONDS") or 60),
+                publisher_confirms=env_bool("RABBITMQ_PUBLISHER_CONFIRMS", True),
+            )
+
+        qdrant = None
+        qdrant_url = env("QDRANT_URL")
+        qdrant_host = env("QDRANT_HOST")
+        if qdrant_url or qdrant_host:
+            qdrant = QdrantSettings(
+                url=qdrant_url,
+                host=qdrant_host,
+                port=int(env("QDRANT_PORT") or 6333),
+                grpc_port=int(env("QDRANT_GRPC_PORT") or 6334),
+                use_ssl=env_bool("QDRANT_USE_SSL", False),
+                api_key=env("QDRANT_API_KEY"),
+                timeout_seconds=float(env("QDRANT_TIMEOUT_SECONDS") or 10.0),
+                prefer_grpc=env_bool("QDRANT_PREFER_GRPC", False),
+                collection_prefix=env("QDRANT_COLLECTION_PREFIX") or "",
+            )
+
+        minio = None
+        minio_endpoint = env("MINIO_ENDPOINT")
+        minio_access_key = env("MINIO_ACCESS_KEY")
+        minio_secret_key = env("MINIO_SECRET_KEY")
+        if minio_endpoint and minio_access_key and minio_secret_key:
+            minio = MinioSettings(
+                endpoint=minio_endpoint,
+                access_key=minio_access_key,
+                secret_key=minio_secret_key,
+                bucket=env("MINIO_BUCKET") or "orchid",
+                create_bucket_if_missing=env_bool("MINIO_CREATE_BUCKET_IF_MISSING", False),
+                secure=env_bool("MINIO_SECURE", False),
+                region=env("MINIO_REGION"),
+            )
+
+        r2 = None
+        r2_account_id = env("R2_ACCOUNT_ID")
+        r2_endpoint = env("R2_ENDPOINT")
+        r2_access_key = env("R2_ACCESS_KEY")
+        r2_secret_key = env("R2_SECRET_KEY")
+        if r2_access_key and r2_secret_key and (r2_endpoint or r2_account_id):
+            r2 = R2Settings(
+                account_id=r2_account_id,
+                endpoint=r2_endpoint,
+                access_key=r2_access_key,
+                secret_key=r2_secret_key,
+                bucket=env("R2_BUCKET") or "orchid",
+                create_bucket_if_missing=env_bool("R2_CREATE_BUCKET_IF_MISSING", False),
+                secure=env_bool("R2_SECURE", True),
+                region=env("R2_REGION") or "auto",
+            )
+
+        pgvector = None
+        if postgres_dsn:
+            pgvector = PgVectorSettings(
+                table=env("PGVECTOR_TABLE") or "embeddings",
+                dimensions=int(env("PGVECTOR_DIMENSIONS") or 1536),
+                distance_metric=env("PGVECTOR_DISTANCE_METRIC") or "cosine",
+                ivfflat_lists=int(env("PGVECTOR_IVFFLAT_LISTS") or 100),
+            )
+
+        multi_bucket = None
+        mb_endpoint = env("MULTI_BUCKET_ENDPOINT")
+        mb_access_key = env("MULTI_BUCKET_ACCESS_KEY")
+        mb_secret_key = env("MULTI_BUCKET_SECRET_KEY")
+        mb_buckets_json = env("MULTI_BUCKET_BUCKETS")
+        if mb_endpoint and mb_access_key and mb_secret_key and mb_buckets_json:
+            buckets = json.loads(mb_buckets_json)
+            multi_bucket = MultiBucketSettings(
+                endpoint=mb_endpoint,
+                access_key=mb_access_key,
+                secret_key=mb_secret_key,
+                buckets=buckets,
+                create_buckets_if_missing=env_bool(
+                    "MULTI_BUCKET_CREATE_BUCKETS_IF_MISSING", False
+                ),
+                secure=env_bool("MULTI_BUCKET_SECURE", False),
+                region=env("MULTI_BUCKET_REGION"),
+            )
+
+        return cls(
+            sqlite=sqlite,
+            postgres=postgres,
+            redis=redis,
+            mongodb=mongodb,
+            rabbitmq=rabbitmq,
+            qdrant=qdrant,
+            minio=minio,
+            r2=r2,
+            pgvector=pgvector,
+            multi_bucket=multi_bucket,
+        )
+
+
+ResourcesSettings = ResourceSettings
 
 
 class AppSettings(BaseModel):
@@ -352,4 +620,4 @@ class AppSettings(BaseModel):
     service: ServiceSettings
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
-    resources: ResourcesSettings = Field(default_factory=ResourcesSettings)
+    resources: ResourceSettings = Field(default_factory=ResourceSettings)

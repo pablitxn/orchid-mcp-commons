@@ -13,6 +13,7 @@ from orchid_commons.observability.langfuse import (
     LangfuseClientSettings,
     create_langfuse_client,
     get_default_langfuse_client,
+    reset_default_langfuse_client,
     set_default_langfuse_client,
 )
 from orchid_commons.runtime.errors import MissingDependencyError
@@ -403,3 +404,21 @@ def test_update_helpers_proxy_to_underlying_client(monkeypatch: pytest.MonkeyPat
     ]
     assert fake_client.flush_calls == 1
     assert fake_client.shutdown_calls == 1
+
+
+def test_reset_default_langfuse_client_clears_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_client = FakeLangfuseSdkClient()
+
+    monkeypatch.setattr(
+        langfuse_module,
+        "_build_langfuse_sdk_client",
+        lambda settings: fake_client,
+    )
+
+    create_langfuse_client(settings=_build_enabled_settings())
+    assert get_default_langfuse_client() is not None
+
+    reset_default_langfuse_client()
+    assert get_default_langfuse_client() is None

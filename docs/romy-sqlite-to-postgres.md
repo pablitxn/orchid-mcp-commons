@@ -22,7 +22,7 @@ Arquitectura observada en `romy-skills`:
 ## Estado objetivo (to-be)
 
 - `ResourceManager` como orquestador de recursos.
-- `ResourceSettings.from_app_settings(...)` + `load_config(...)`.
+- `app_settings.resources` + `load_config(...)`.
 - Provider `PostgresProvider` como backend SQL principal.
 - Configuracion tipada por `appsettings.json` + `appsettings.<env>.json`.
 
@@ -61,13 +61,11 @@ export DATABASE_URL="postgresql://romy:romy@localhost:5432/romy"
 ### 2. Inicializar recursos con commons
 
 ```python
-from orchid_commons import ResourceManager, ResourceSettings, load_config
+from orchid_commons import ResourceManager, load_config
 
 app_settings = load_config(config_dir="config", env="production")
-resource_settings = ResourceSettings.from_app_settings(app_settings)
-
 manager = ResourceManager()
-await manager.startup(resource_settings, required=["postgres"])
+await manager.startup(app_settings.resources, required=["postgres"])
 postgres = manager.get("postgres")
 ```
 

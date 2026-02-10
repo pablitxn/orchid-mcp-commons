@@ -27,7 +27,7 @@ Documentar el pasaje de componentes compartibles de `youtube-mcp` hacia `orchid_
 | Logging | `bootstrap_logging_from_app_settings` |
 | OTEL | `bootstrap_observability` |
 | Langfuse | `create_langfuse_client` |
-| Recursos | `ResourceManager` + `ResourceSettings.from_app_settings(...)` |
+| Recursos | `ResourceManager` + `app_settings.resources` |
 
 ## Mapa de extraccion detallado
 

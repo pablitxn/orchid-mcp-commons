@@ -192,25 +192,6 @@ class RabbitMqBroker(ObservableMixin):
 
         self._observe_operation("close", started, success=True)
 
-    def _observe_operation(self, operation: str, started: float, *, success: bool) -> None:
-        self._metrics_recorder().observe_operation(
-            resource="rabbitmq",
-            operation=operation,
-            duration_seconds=perf_counter() - started,
-            success=success,
-        )
-
-    def _observe_error(self, operation: str, started: float, exc: Exception) -> None:
-        self._observe_operation(operation, started, success=False)
-        self._metrics_recorder().observe_error(
-            resource="rabbitmq",
-            operation=operation,
-            error_type=type(exc).__name__,
-        )
-
-    def _metrics_recorder(self) -> MetricsRecorder:
-        return get_metrics_recorder() if self._metrics is None else self._metrics
-
 
 async def create_rabbitmq_broker(settings: RabbitMqSettings) -> RabbitMqBroker:
     """Factory used by ResourceManager bootstrap."""

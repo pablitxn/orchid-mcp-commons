@@ -22,7 +22,7 @@ Este playbook esta pensado para que un integrador pueda completar el onboarding 
 | --- | --- |
 | 0-5 | Clonar repos, instalar deps y validar `uv run pytest` en `orchid_skills_commons_py`. |
 | 5-10 | Entender contratos de `ResourceManager`, `load_config` y perfiles blob/obs en `README.md`. |
-| 10-20 | Levantar un servicio piloto con `appsettings` + `ResourceSettings.from_app_settings(...)`. |
+| 10-20 | Levantar un servicio piloto con `appsettings` + `app_settings.resources`. |
 | 20-25 | Ejecutar smoke checks de recursos (`health_check`) y cierre (`close_all`). |
 | 25-30 | Completar checklist de rollout del entorno objetivo (dev/staging/prod). |
 
@@ -67,7 +67,6 @@ En el startup del servicio:
 ```python
 from orchid_commons import (
     ResourceManager,
-    ResourceSettings,
     bootstrap_logging_from_app_settings,
     bootstrap_observability,
     load_config,
@@ -77,9 +76,8 @@ app_settings = load_config(config_dir="config", env="production")
 bootstrap_logging_from_app_settings(app_settings, env="production")
 bootstrap_observability(app_settings)
 
-resource_settings = ResourceSettings.from_app_settings(app_settings)
 manager = ResourceManager()
-await manager.startup(resource_settings, required=["postgres"])
+await manager.startup(app_settings.resources, required=["postgres"])
 postgres = manager.get("postgres")
 ```
 

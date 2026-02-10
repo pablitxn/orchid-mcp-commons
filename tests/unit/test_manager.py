@@ -9,6 +9,7 @@ import pytest
 from orchid_commons import ResourceManager
 from orchid_commons.runtime import manager as manager_module
 from orchid_commons.runtime.errors import ResourceNotFoundError, ShutdownError
+from orchid_commons.runtime.manager import reset_resource_factories
 
 
 class TestResourceManager:
@@ -93,8 +94,7 @@ class TestResourceManager:
         original_factories = dict(manager_module._RESOURCE_FACTORIES)
         original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
         try:
-            manager_module._RESOURCE_FACTORIES.clear()
-            manager_module._BUILTIN_FACTORIES_REGISTERED = False
+            reset_resource_factories()
             manager_module._ensure_builtin_factories()
 
             assert {
@@ -109,7 +109,7 @@ class TestResourceManager:
                 manager_module._RESOURCE_FACTORIES.keys()
             )
         finally:
-            manager_module._RESOURCE_FACTORIES.clear()
+            reset_resource_factories()
             manager_module._RESOURCE_FACTORIES.update(original_factories)
             manager_module._BUILTIN_FACTORIES_REGISTERED = original_registered
 
@@ -117,7 +117,7 @@ class TestResourceManager:
         original_factories = dict(manager_module._RESOURCE_FACTORIES)
         original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
         try:
-            manager_module._RESOURCE_FACTORIES.clear()
+            reset_resource_factories()
             manager_module._BUILTIN_FACTORIES_REGISTERED = True  # skip builtin registration
 
             async def _slow_factory(settings: object) -> str:
@@ -140,7 +140,7 @@ class TestResourceManager:
             assert mgr.has("res_b")
             assert mgr.has("res_c")
         finally:
-            manager_module._RESOURCE_FACTORIES.clear()
+            reset_resource_factories()
             manager_module._RESOURCE_FACTORIES.update(original_factories)
             manager_module._BUILTIN_FACTORIES_REGISTERED = original_registered
 
@@ -148,7 +148,7 @@ class TestResourceManager:
         original_factories = dict(manager_module._RESOURCE_FACTORIES)
         original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
         try:
-            manager_module._RESOURCE_FACTORIES.clear()
+            reset_resource_factories()
             manager_module._BUILTIN_FACTORIES_REGISTERED = True
 
             async def _ok_factory(settings: object) -> str:
@@ -173,6 +173,24 @@ class TestResourceManager:
             assert mgr.has("good_b")
             assert not mgr.has("bad")
         finally:
-            manager_module._RESOURCE_FACTORIES.clear()
+            reset_resource_factories()
+            manager_module._RESOURCE_FACTORIES.update(original_factories)
+            manager_module._BUILTIN_FACTORIES_REGISTERED = original_registered
+
+    def test_reset_resource_factories_clears_state(self) -> None:
+        original_factories = dict(manager_module._RESOURCE_FACTORIES)
+        original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
+        try:
+            # Ensure builtins are loaded
+            manager_module._ensure_builtin_factories()
+            assert manager_module._BUILTIN_FACTORIES_REGISTERED is True
+            assert len(manager_module._RESOURCE_FACTORIES) > 0
+
+            reset_resource_factories()
+
+            assert manager_module._BUILTIN_FACTORIES_REGISTERED is False
+            assert len(manager_module._RESOURCE_FACTORIES) == 0
+        finally:
+            reset_resource_factories()
             manager_module._RESOURCE_FACTORIES.update(original_factories)
             manager_module._BUILTIN_FACTORIES_REGISTERED = original_registered

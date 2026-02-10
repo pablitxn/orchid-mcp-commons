@@ -22,7 +22,7 @@ from orchid_commons.runtime.health import (
 )
 
 if TYPE_CHECKING:
-    from orchid_commons.config.resources import ResourceSettings
+    from orchid_commons.config.models import ResourceSettings
 
 
 @dataclass(slots=True)

@@ -11,7 +11,8 @@ from time import perf_counter
 from typing import Any, Literal, Protocol, runtime_checkable
 
 from orchid_commons.config.resources import MinioSettings, R2Settings
-from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError, OrchidCommonsError
 from orchid_commons.runtime.health import HealthStatus
 
@@ -185,12 +186,14 @@ class S3CompatibleClient(Protocol):
         ...
 
 
-class S3BlobStorage(BlobStorage):
+class S3BlobStorage(ObservableMixin, BlobStorage):
     """S3-compatible blob storage implementation.
 
     This adapter targets MinIO-compatible semantics and works with providers such
     as AWS S3 and Cloudflare R2 through their S3-compatible APIs.
     """
+
+    _resource_name = "s3"
 
     def __init__(
         self,
@@ -206,7 +209,7 @@ class S3BlobStorage(BlobStorage):
         self._client = client
         self._bucket = normalized_bucket
         self._metrics = metrics
-        self._metrics_resource = metrics_resource
+        self._resource_name = metrics_resource
 
     @property
     def bucket(self) -> str:
@@ -287,7 +290,7 @@ class S3BlobStorage(BlobStorage):
             self._observe_error("upload", started, translated)
             raise translated from exc
 
-        self._observe_success("upload", started)
+        self._observe_operation("upload", started, success=True)
 
     async def download(self, key: str) -> BlobObject:
         """Download object bytes and include metadata/content-type."""
@@ -331,7 +334,7 @@ class S3BlobStorage(BlobStorage):
             content_type=headers.get("content-type"),
             metadata=_extract_user_metadata(headers),
         )
-        self._observe_success("download", started)
+        self._observe_operation("download", started, success=True)
         return result
 
     async def exists(self, key: str) -> bool:
@@ -345,11 +348,11 @@ class S3BlobStorage(BlobStorage):
                 self._bucket,
                 object_key,
             )
-            self._observe_success("exists", started)
+            self._observe_operation("exists", started, success=True)
             return True
         except Exception as exc:
             if _is_not_found_error(exc):
-                self._observe_success("exists", started)
+                self._observe_operation("exists", started, success=True)
                 return False
             translated = _translate_blob_error(
                 operation="exists",
@@ -373,7 +376,7 @@ class S3BlobStorage(BlobStorage):
             )
         except Exception as exc:
             if _is_not_found_error(exc):
-                self._observe_success("delete", started)
+                self._observe_operation("delete", started, success=True)
                 return
             translated = _translate_blob_error(
                 operation="delete",
@@ -384,7 +387,7 @@ class S3BlobStorage(BlobStorage):
             self._observe_error("delete", started, translated)
             raise translated from exc
 
-        self._observe_success("delete", started)
+        self._observe_operation("delete", started, success=True)
 
     async def presign(
         self,
@@ -409,7 +412,7 @@ class S3BlobStorage(BlobStorage):
                     object_key,
                     expires=expires,
                 )
-                self._observe_success("presign_get", started)
+                self._observe_operation("presign_get", started, success=True)
                 return result
             result = await asyncio.to_thread(
                 self._client.presigned_put_object,
@@ -417,7 +420,7 @@ class S3BlobStorage(BlobStorage):
                 object_key,
                 expires=expires,
             )
-            self._observe_success("presign_put", started)
+            self._observe_operation("presign_put", started, success=True)
             return result
         except Exception as exc:
             translated = _translate_blob_error(
@@ -437,13 +440,13 @@ class S3BlobStorage(BlobStorage):
             exists = await asyncio.to_thread(self._client.bucket_exists, self._bucket)
             latency_ms = (perf_counter() - started) * 1000
             if exists:
-                self._observe_success("health_check", started)
+                self._observe_operation("health_check", started, success=True)
                 return HealthStatus(
                     healthy=True,
                     latency_ms=latency_ms,
                     message="bucket reachable",
                 )
-            self._observe_success("health_check", started)
+            self._observe_operation("health_check", started, success=True)
             return HealthStatus(
                 healthy=False,
                 latency_ms=latency_ms,
@@ -471,7 +474,7 @@ class S3BlobStorage(BlobStorage):
             except Exception as exc:
                 self._observe_error("close", started, exc)
                 raise
-            self._observe_success("close", started)
+            self._observe_operation("close", started, success=True)
             return
 
         http_client = getattr(self._client, "_http", None)
@@ -482,31 +485,7 @@ class S3BlobStorage(BlobStorage):
             except Exception as exc:
                 self._observe_error("close", started, exc)
                 raise
-        self._observe_success("close", started)
-
-    def _observe_success(self, operation: str, started: float) -> None:
-        self._metrics_recorder().observe_operation(
-            resource=self._metrics_resource,
-            operation=operation,
-            duration_seconds=perf_counter() - started,
-            success=True,
-        )
-
-    def _observe_error(self, operation: str, started: float, exc: Exception) -> None:
-        self._metrics_recorder().observe_operation(
-            resource=self._metrics_resource,
-            operation=operation,
-            duration_seconds=perf_counter() - started,
-            success=False,
-        )
-        self._metrics_recorder().observe_error(
-            resource=self._metrics_resource,
-            operation=operation,
-            error_type=type(exc).__name__,
-        )
-
-    def _metrics_recorder(self) -> MetricsRecorder:
-        return get_metrics_recorder() if self._metrics is None else self._metrics
+        self._observe_operation("close", started, success=True)
 
 
 def _normalize_key(key: str) -> str:

@@ -8,11 +8,12 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Sequen
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any, ClassVar, TypeVar
 
 from orchid_commons.config.resources import PostgresSettings
 from orchid_commons.db._sql_utils import collect_migration_files, read_sql_file
-from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
 
@@ -46,8 +47,10 @@ def _build_retryable_exceptions(asyncpg: Any) -> tuple[type[BaseException], ...]
 
 
 @dataclass(slots=True)
-class PostgresProvider:
+class PostgresProvider(ObservableMixin):
     """Managed PostgreSQL pool with SQLite-like query helpers."""
+
+    _resource_name: ClassVar[str] = "postgres"
 
     _pool: Any
     command_timeout_seconds: float
@@ -260,12 +263,7 @@ class PostgresProvider:
             except TimeoutError:
                 self._pool.terminate()
         except Exception as exc:
-            self._observe_operation("close", started, success=False)
-            self._metrics_recorder().observe_error(
-                resource="postgres",
-                operation="close",
-                error_type=type(exc).__name__,
-            )
+            self._observe_error("close", started, exc)
             raise
         finally:
             self._closed = True
@@ -303,24 +301,11 @@ class PostgresProvider:
                     return result
             except Exception as exc:
                 if not isinstance(exc, retryable_exceptions) or attempt >= self.retry_attempts:
-                    self._observe_operation(operation_name, started, success=False)
-                    self._metrics_recorder().observe_error(
-                        resource="postgres",
-                        operation=operation_name,
-                        error_type=type(exc).__name__,
-                    )
+                    self._observe_error(operation_name, started, exc)
                     self._observe_postgres_pool_usage()
                     raise
                 attempt += 1
                 await asyncio.sleep(self.retry_backoff_seconds * attempt)
-
-    def _observe_operation(self, operation_name: str, started: float, *, success: bool) -> None:
-        self._metrics_recorder().observe_operation(
-            resource="postgres",
-            operation=operation_name,
-            duration_seconds=time.perf_counter() - started,
-            success=success,
-        )
 
     def _observe_postgres_pool_usage(self) -> None:
         size = self._pool_metric("get_size")
@@ -339,9 +324,6 @@ class PostgresProvider:
             min_connections=(resolved_size if min_size is None else max(0, min_size)),
             max_connections=(resolved_size if max_size is None else max(0, max_size)),
         )
-
-    def _metrics_recorder(self) -> MetricsRecorder:
-        return get_metrics_recorder() if self._metrics is None else self._metrics
 
     def _pool_metric(self, getter_name: str) -> int | None:
         getter = getattr(self._pool, getter_name, None)

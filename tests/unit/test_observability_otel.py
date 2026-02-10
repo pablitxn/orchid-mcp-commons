@@ -311,6 +311,38 @@ def test_otel_metrics_recorder_emits_metrics_and_spans(monkeypatch: pytest.Monke
     assert span.ended is True
 
 
+def test_bootstrap_twice_without_shutdown_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        otel,
+        "_import_otel_sdk_modules",
+        lambda: pytest.fail("should not reach SDK import"),
+    )
+
+    otel.bootstrap_observability(ObservabilitySettings(enabled=False))
+
+    with pytest.raises(RuntimeError, match="shutdown_observability"):
+        otel.bootstrap_observability(ObservabilitySettings(enabled=False))
+
+
+def test_shutdown_then_rebootstrap_applies_new_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        otel,
+        "_import_otel_sdk_modules",
+        lambda: pytest.fail("should not reach SDK import"),
+    )
+
+    handle_a = otel.bootstrap_observability(ObservabilitySettings(enabled=False))
+    assert handle_a.enabled is False
+
+    otel.shutdown_observability()
+
+    handle_b = otel.bootstrap_observability(ObservabilitySettings(enabled=False))
+    assert handle_b is not handle_a
+    assert otel.get_observability_handle() is handle_b
+
+
 def test_request_span_records_success_and_error_metrics(monkeypatch: pytest.MonkeyPatch) -> None:
     trace_module = FakeTraceModule()
     request_total = FakeInstrument()

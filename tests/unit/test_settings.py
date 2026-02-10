@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from orchid_commons.config import load_config
-from orchid_commons.config.resources import (
+from orchid_commons.config.models import (
     MinioSettings,
     MongoDbSettings,
     QdrantSettings,
@@ -17,16 +17,16 @@ from orchid_commons.config.resources import (
     ResourceSettings,
 )
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures" / "config"
+FIXTURES_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "config"
 
 
 class TestResourceSettings:
-    def test_from_app_settings_maps_postgres(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_resources_maps_postgres(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4317")
         monkeypatch.setenv("DATABASE_URL", "postgresql://user:pass@localhost:5432/app")
 
         app_settings = load_config(config_dir=FIXTURES_DIR, env="production")
-        resources = ResourceSettings.from_app_settings(app_settings)
+        resources = app_settings.resources
 
         assert resources.postgres is not None
         assert resources.postgres.dsn == "postgresql://user:pass@localhost:5432/app"
@@ -34,14 +34,14 @@ class TestResourceSettings:
         assert resources.postgres.max_pool_size == 20
         assert resources.postgres.command_timeout_seconds == 60.0
 
-    def test_from_app_settings_maps_sqlite(self) -> None:
+    def test_resources_maps_sqlite(self) -> None:
         app_settings = load_config(config_dir=FIXTURES_DIR, env="development")
-        resources = ResourceSettings.from_app_settings(app_settings)
+        resources = app_settings.resources
 
         assert resources.sqlite is not None
         assert str(resources.sqlite.db_path) == "data/base.db"
 
-    def test_from_app_settings_maps_r2(self, tmp_path: Path) -> None:
+    def test_resources_maps_r2(self, tmp_path: Path) -> None:
         config_file = tmp_path / "appsettings.json"
         config_file.write_text(
             """
@@ -60,12 +60,12 @@ class TestResourceSettings:
         )
 
         app_settings = load_config(config_dir=tmp_path)
-        resources = ResourceSettings.from_app_settings(app_settings)
+        resources = app_settings.resources
 
         assert resources.r2 is not None
         assert resources.r2.resolved_endpoint == "account-123.r2.cloudflarestorage.com"
 
-    def test_from_app_settings_maps_redis_and_mongodb(self, tmp_path: Path) -> None:
+    def test_resources_maps_redis_and_mongodb(self, tmp_path: Path) -> None:
         config_file = tmp_path / "appsettings.json"
         config_file.write_text(
             """
@@ -89,7 +89,7 @@ class TestResourceSettings:
         )
 
         app_settings = load_config(config_dir=tmp_path)
-        resources = ResourceSettings.from_app_settings(app_settings)
+        resources = app_settings.resources
 
         assert resources.redis is not None
         assert resources.redis.url == "redis://localhost:6379/1"
@@ -100,7 +100,7 @@ class TestResourceSettings:
         assert resources.mongodb.database == "orchid"
         assert resources.mongodb.app_name == "orchid-tests"
 
-    def test_from_app_settings_maps_rabbitmq_and_qdrant(self, tmp_path: Path) -> None:
+    def test_resources_maps_rabbitmq_and_qdrant(self, tmp_path: Path) -> None:
         config_file = tmp_path / "appsettings.json"
         config_file.write_text(
             """
@@ -123,7 +123,7 @@ class TestResourceSettings:
         )
 
         app_settings = load_config(config_dir=tmp_path)
-        resources = ResourceSettings.from_app_settings(app_settings)
+        resources = app_settings.resources
 
         assert resources.rabbitmq is not None
         assert resources.rabbitmq.url == "amqp://guest:guest@localhost:5672/"

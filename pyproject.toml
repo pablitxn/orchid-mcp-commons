@@ -22,6 +22,7 @@ db = [
   "motor>=3.6.0",
   "aio-pika>=9.4.0",
   "qdrant-client>=1.9.0",
+  "pgvector>=0.3.0",
 ]
 sqlite = [
   "aiosqlite>=0.20.0",
@@ -40,6 +41,10 @@ rabbitmq = [
 ]
 qdrant = [
   "qdrant-client>=1.9.0",
+]
+pgvector = [
+  "pgvector>=0.3.0",
+  "asyncpg>=0.29.0",
 ]
 blob = [
   "minio>=7.2.0",
@@ -93,6 +98,8 @@ module = [
   "aiohttp.*",
   "asyncpg",
   "asyncpg.*",
+  "pgvector",
+  "pgvector.*",
   "minio",
   "minio.*",
   "prometheus_client",

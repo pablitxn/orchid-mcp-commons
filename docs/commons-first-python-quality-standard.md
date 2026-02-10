@@ -45,7 +45,7 @@ bootstrap_logging_from_app_settings(settings)
 bootstrap_observability(settings)
 
 manager = ResourceManager()
-await manager.startup(ResourceSettings.from_app_settings(settings))
+await manager.startup(settings.resources)
 ```
 
 ### 2) Dependency and task management must use `uv`

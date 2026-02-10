@@ -26,7 +26,7 @@ from orchid_commons.config import (
     PlaceholderResolutionError,
     load_config,
 )
-from orchid_commons.config.resources import (
+from orchid_commons.config.models import (
     MinioSettings,
     MongoDbSettings,
     PgVectorSettings,
@@ -62,6 +62,7 @@ from orchid_commons.db import (
     create_sqlite_resource,
 )
 from orchid_commons.observability import (
+    ObservableMixin,
     LangfuseClient,
     LangfuseClientSettings,
     ObservabilityHandle,
@@ -77,6 +78,7 @@ from orchid_commons.observability import (
     http_request_scope,
     request_span,
     request_span_async,
+    reset_default_langfuse_client,
     set_default_langfuse_client,
     shutdown_observability,
     start_span,
@@ -103,6 +105,7 @@ from orchid_commons.observability.metrics import (
     get_metrics_recorder,
     prometheus_content_type,
     render_prometheus_metrics,
+    reset_metrics_recorder,
     set_metrics_recorder,
     start_prometheus_http_server,
 )
@@ -121,6 +124,7 @@ from orchid_commons.runtime.manager import (
     ResourceManager,
     bootstrap_resources,
     register_factory,
+    reset_resource_factories,
 )
 
 __all__ = [
@@ -148,6 +152,7 @@ __all__ = [
     "MongoDbResource",
     "MongoDbSettings",
     "NoopMetricsRecorder",
+    "ObservableMixin",
     "ObservabilityHandle",
     "OpenTelemetryMetricsRecorder",
     "OtlpRetrySettings",
@@ -217,6 +222,9 @@ __all__ = [
     "prometheus_content_type",
     "register_factory",
     "register_minio_factory",
+    "reset_default_langfuse_client",
+    "reset_metrics_recorder",
+    "reset_resource_factories",
     "register_r2_factory",
     "render_prometheus_metrics",
     "request_span",

@@ -10,7 +10,8 @@ from typing import Any
 
 from orchid_commons.config.resources import SqliteSettings
 from orchid_commons.db._sql_utils import collect_migration_files, read_sql_file
-from orchid_commons.observability.metrics import MetricsRecorder, get_metrics_recorder
+from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
 
@@ -26,7 +27,7 @@ def _import_aiosqlite() -> Any:
     return aiosqlite
 
 
-class SqliteResource:
+class SqliteResource(ObservableMixin):
     """Managed SQLite connection with helper methods for common operations.
 
     This resource uses a **single shared connection** for all operations.
@@ -43,6 +44,8 @@ class SqliteResource:
     :class:`~orchid_commons.db.postgres.PostgresProvider` which manages an
     ``asyncpg`` connection pool out of the box.
     """
+
+    _resource_name = "sqlite"
 
     def __init__(
         self,
@@ -87,12 +90,7 @@ class SqliteResource:
             self._observe_error("connect", started, exc)
             raise
 
-        self._metrics_recorder().observe_operation(
-            resource="sqlite",
-            operation="connect",
-            duration_seconds=perf_counter() - started,
-            success=True,
-        )
+        self._observe_operation("connect", started, success=True)
         return self._connection
 
     async def close(self) -> None:
@@ -105,12 +103,7 @@ class SqliteResource:
             except Exception as exc:
                 self._observe_error("close", started, exc)
                 raise
-        self._metrics_recorder().observe_operation(
-            resource="sqlite",
-            operation="close",
-            duration_seconds=perf_counter() - started,
-            success=True,
-        )
+        self._observe_operation("close", started, success=True)
 
     async def health_check(self) -> HealthStatus:
         """Probe resource health using a lightweight query."""
@@ -161,12 +154,7 @@ class SqliteResource:
             self._observe_error("execute", started, exc)
             raise
 
-        self._metrics_recorder().observe_operation(
-            resource="sqlite",
-            operation="execute",
-            duration_seconds=perf_counter() - started,
-            success=True,
-        )
+        self._observe_operation("execute", started, success=True)
         return cursor
 
     async def executemany(
@@ -187,12 +175,7 @@ class SqliteResource:
             self._observe_error("executemany", started, exc)
             raise
 
-        self._metrics_recorder().observe_operation(
-            resource="sqlite",
-            operation="executemany",
-            duration_seconds=perf_counter() - started,
-            success=True,
-        )
+        self._observe_operation("executemany", started, success=True)
         return cursor
 
     async def executescript(self, sql_script: str, *, commit: bool = True) -> None:
@@ -207,12 +190,7 @@ class SqliteResource:
             self._observe_error("executescript", started, exc)
             raise
 
-        self._metrics_recorder().observe_operation(
-            resource="sqlite",
-            operation="executescript",
-            duration_seconds=perf_counter() - started,
-            success=True,
-        )
+        self._observe_operation("executescript", started, success=True)
 
     async def fetchone(
         self,
@@ -229,12 +207,7 @@ class SqliteResource:
             self._observe_error("fetchone", started, exc)
             raise
 
-        self._metrics_recorder().observe_operation(
-            resource="sqlite",
-            operation="fetchone",
-            duration_seconds=perf_counter() - started,
-            success=True,
-        )
+        self._observe_operation("fetchone", started, success=True)
         return row
 
     async def fetchall(
@@ -252,29 +225,8 @@ class SqliteResource:
             self._observe_error("fetchall", started, exc)
             raise
 
-        self._metrics_recorder().observe_operation(
-            resource="sqlite",
-            operation="fetchall",
-            duration_seconds=perf_counter() - started,
-            success=True,
-        )
+        self._observe_operation("fetchall", started, success=True)
         return list(rows)
-
-    def _observe_error(self, operation: str, started: float, exc: Exception) -> None:
-        self._metrics_recorder().observe_operation(
-            resource="sqlite",
-            operation=operation,
-            duration_seconds=perf_counter() - started,
-            success=False,
-        )
-        self._metrics_recorder().observe_error(
-            resource="sqlite",
-            operation=operation,
-            error_type=type(exc).__name__,
-        )
-
-    def _metrics_recorder(self) -> MetricsRecorder:
-        return get_metrics_recorder() if self._metrics is None else self._metrics
 
     async def execute_script_file(self, script_path: Path | str) -> None:
         """Execute a SQL script from file."""

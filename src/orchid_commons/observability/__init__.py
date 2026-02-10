@@ -1,5 +1,6 @@
 """Observability helpers for tracing and telemetry backends."""
 
+from orchid_commons.observability._observable import ObservableMixin
 from orchid_commons.observability.http import (
     create_aiohttp_observability_middleware,
     create_fastapi_correlation_dependency,
@@ -28,6 +29,7 @@ from orchid_commons.observability.otel import (
 )
 
 __all__ = [
+    "ObservableMixin",
     "LangfuseClient",
     "LangfuseClientSettings",
     "ObservabilityHandle",
@@ -41,6 +43,7 @@ __all__ = [
     "get_default_langfuse_client",
     "get_observability_handle",
     "reset_default_langfuse_client",
+    "reset_metrics_recorder",
     "http_request_scope",
     "request_span",
     "request_span_async",

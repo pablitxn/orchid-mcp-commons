@@ -10,6 +10,7 @@ from orchid_commons.observability.metrics import (
     configure_prometheus_metrics,
     create_prometheus_asgi_app,
     get_metrics_recorder,
+    reset_metrics_recorder,
     set_metrics_recorder,
 )
 
@@ -111,3 +112,16 @@ async def test_create_prometheus_asgi_app_exposes_metrics() -> None:
     payload = sent_messages[1]["body"]
     assert isinstance(payload, bytes)
     assert b"orchid_resource_throughput_total" in payload
+
+
+def test_reset_metrics_recorder_restores_noop() -> None:
+    previous = get_metrics_recorder()
+    try:
+        registry = prometheus_client.CollectorRegistry()
+        configure_prometheus_metrics(registry=registry)
+        assert isinstance(get_metrics_recorder(), PrometheusMetricsRecorder)
+
+        reset_metrics_recorder()
+        assert isinstance(get_metrics_recorder(), NoopMetricsRecorder)
+    finally:
+        set_metrics_recorder(previous)
