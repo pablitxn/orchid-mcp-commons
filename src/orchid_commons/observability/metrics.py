@@ -281,7 +281,7 @@ class PrometheusHttpServer:
 def start_prometheus_http_server(
     *,
     port: int = 9464,
-    host: str = "0.0.0.0",
+    host: str = "127.0.0.1",
     registry: Any | None = None,
 ) -> PrometheusHttpServer:
     """Start Prometheus exporter in a background thread."""

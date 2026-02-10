@@ -262,7 +262,10 @@ class TestResourceSettingsFromEnv:
 
 class TestMinioSettings:
     def test_local_dev_defaults(self) -> None:
-        settings = MinioSettings.local_dev()
+        with pytest.warns(UserWarning, match="local development only"):
+            settings = MinioSettings.local_dev(
+                access_key="minioadmin", secret_key="minioadmin"
+            )
 
         assert settings.endpoint == "localhost:9000"
         assert settings.access_key.get_secret_value() == "minioadmin"
@@ -270,3 +273,14 @@ class TestMinioSettings:
         assert settings.bucket == "orchid-dev"
         assert settings.create_bucket_if_missing is True
         assert settings.secure is False
+
+    def test_local_dev_raises_in_production(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ORCHID_ENV", "production")
+        with pytest.raises(RuntimeError, match="must not be used in production"):
+            MinioSettings.local_dev(access_key="ak", secret_key="sk")
+
+    def test_local_dev_emits_warning(self) -> None:
+        with pytest.warns(UserWarning, match="local development only"):
+            MinioSettings.local_dev(access_key="ak", secret_key="sk")

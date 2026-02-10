@@ -319,7 +319,13 @@ class TestMultiBucketSettings:
         assert kwargs["region"] == "us-east-1"
 
     def test_presign_base_url_http(self) -> None:
-        settings = make_settings()
+        settings = MultiBucketSettings(
+            endpoint="localhost:9000",
+            access_key="key",
+            secret_key="secret",
+            buckets={"default": "bucket"},
+            secure=False,
+        )
         assert settings.presign_base_url() == "http://localhost:9000"
 
     def test_presign_base_url_https(self) -> None:
@@ -333,11 +339,25 @@ class TestMultiBucketSettings:
         assert settings.presign_base_url() == "https://s3.example.com"
 
     def test_local_dev_factory(self) -> None:
-        settings = MultiBucketSettings.local_dev(
-            buckets={"videos": "dev-videos", "chunks": "dev-chunks"}
-        )
+        with pytest.warns(UserWarning, match="local development only"):
+            settings = MultiBucketSettings.local_dev(
+                access_key="minioadmin",
+                secret_key="minioadmin",
+                buckets={"videos": "dev-videos", "chunks": "dev-chunks"},
+            )
 
         assert settings.endpoint == "localhost:9000"
         assert settings.access_key.get_secret_value() == "minioadmin"
         assert settings.create_buckets_if_missing is True
         assert settings.buckets == {"videos": "dev-videos", "chunks": "dev-chunks"}
+
+    def test_local_dev_raises_in_production(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ORCHID_ENV", "production")
+        with pytest.raises(RuntimeError, match="must not be used in production"):
+            MultiBucketSettings.local_dev(access_key="ak", secret_key="sk")
+
+    def test_local_dev_emits_warning(self) -> None:
+        with pytest.warns(UserWarning, match="local development only"):
+            MultiBucketSettings.local_dev(access_key="ak", secret_key="sk")

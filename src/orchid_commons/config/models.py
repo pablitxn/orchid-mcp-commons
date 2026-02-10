@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import warnings
 from pathlib import Path
 from typing import Literal
 
@@ -150,7 +151,13 @@ class MinioSettings(BaseModel):
     create_bucket_if_missing: bool = Field(
         default=False, description="Create bucket on startup when it is missing"
     )
-    secure: bool = Field(default=False, description="Use HTTPS")
+    secure: bool = Field(
+        default=True,
+        description=(
+            "Use HTTPS. Defaults to True for production safety. "
+            "Set to False explicitly for local development or use local_dev()."
+        ),
+    )
     region: str | None = Field(default=None, description="AWS region")
 
     def to_s3_client_kwargs(self) -> dict[str, str | bool | None]:
@@ -171,15 +178,18 @@ class MinioSettings(BaseModel):
     def local_dev(
         cls,
         *,
+        access_key: str,
+        secret_key: str,
         bucket: str = "orchid-dev",
         endpoint: str = "localhost:9000",
-        access_key: str = "minioadmin",
-        secret_key: str = "minioadmin",
         secure: bool = False,
         region: str | None = None,
         create_bucket_if_missing: bool = True,
     ) -> MinioSettings:
         """Build defaults that work with local docker-compose MinIO."""
+        if os.getenv("ORCHID_ENV", "development") == "production":
+            raise RuntimeError("local_dev() must not be used in production environments")
+        warnings.warn("local_dev() is intended for local development only.", stacklevel=2)
         return cls(
             endpoint=endpoint,
             access_key=access_key,
@@ -282,7 +292,13 @@ class QdrantSettings(BaseModel):
     host: str | None = Field(default=None, min_length=1, description="Qdrant host")
     port: int = Field(default=6333, ge=1, le=65535, description="Qdrant HTTP port")
     grpc_port: int = Field(default=6334, ge=1, le=65535, description="Qdrant gRPC port")
-    use_ssl: bool = Field(default=False, description="Use HTTPS/TLS")
+    use_ssl: bool = Field(
+        default=True,
+        description=(
+            "Use HTTPS/TLS. Defaults to True for production safety. "
+            "Set to False explicitly for local development."
+        ),
+    )
     api_key: SecretStr | None = Field(default=None, min_length=1, description="Qdrant API key")
     timeout_seconds: float = Field(default=10.0, gt=0.0, description="Request timeout")
     prefer_grpc: bool = Field(default=False, description="Prefer gRPC transport")
@@ -372,7 +388,13 @@ class MultiBucketSettings(BaseModel):
     create_buckets_if_missing: bool = Field(
         default=False, description="Create buckets on startup when missing"
     )
-    secure: bool = Field(default=False, description="Use HTTPS")
+    secure: bool = Field(
+        default=True,
+        description=(
+            "Use HTTPS. Defaults to True for production safety. "
+            "Set to False explicitly for local development or use local_dev()."
+        ),
+    )
     region: str | None = Field(default=None, description="AWS region")
 
     def get_bucket(self, alias: str) -> str:
@@ -399,15 +421,18 @@ class MultiBucketSettings(BaseModel):
     def local_dev(
         cls,
         *,
+        access_key: str,
+        secret_key: str,
         buckets: dict[str, str] | None = None,
         endpoint: str = "localhost:9000",
-        access_key: str = "minioadmin",
-        secret_key: str = "minioadmin",
         secure: bool = False,
         region: str | None = None,
         create_buckets_if_missing: bool = True,
     ) -> MultiBucketSettings:
         """Build defaults that work with local docker-compose MinIO."""
+        if os.getenv("ORCHID_ENV", "development") == "production":
+            raise RuntimeError("local_dev() must not be used in production environments")
+        warnings.warn("local_dev() is intended for local development only.", stacklevel=2)
         default_buckets = buckets or {"default": "orchid-dev"}
         return cls(
             endpoint=endpoint,
@@ -539,7 +564,7 @@ class ResourceSettings(BaseModel):
                 host=qdrant_host,
                 port=int(env("QDRANT_PORT") or 6333),
                 grpc_port=int(env("QDRANT_GRPC_PORT") or 6334),
-                use_ssl=env_bool("QDRANT_USE_SSL", False),
+                use_ssl=env_bool("QDRANT_USE_SSL", True),
                 api_key=env("QDRANT_API_KEY"),
                 timeout_seconds=float(env("QDRANT_TIMEOUT_SECONDS") or 10.0),
                 prefer_grpc=env_bool("QDRANT_PREFER_GRPC", False),
@@ -557,7 +582,7 @@ class ResourceSettings(BaseModel):
                 secret_key=minio_secret_key,
                 bucket=env("MINIO_BUCKET") or "orchid",
                 create_bucket_if_missing=env_bool("MINIO_CREATE_BUCKET_IF_MISSING", False),
-                secure=env_bool("MINIO_SECURE", False),
+                secure=env_bool("MINIO_SECURE", True),
                 region=env("MINIO_REGION"),
             )
 
@@ -602,7 +627,7 @@ class ResourceSettings(BaseModel):
                 create_buckets_if_missing=env_bool(
                     "MULTI_BUCKET_CREATE_BUCKETS_IF_MISSING", False
                 ),
-                secure=env_bool("MULTI_BUCKET_SECURE", False),
+                secure=env_bool("MULTI_BUCKET_SECURE", True),
                 region=env("MULTI_BUCKET_REGION"),
             )
 

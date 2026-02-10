@@ -223,7 +223,10 @@ class TestMinioFactory:
 
 
 def test_local_dev_settings_defaults() -> None:
-    settings = minio_local_dev_settings()
+    with pytest.warns(UserWarning, match="local development only"):
+        settings = minio_local_dev_settings(
+            access_key="minioadmin", secret_key="minioadmin"
+        )
 
     assert settings.endpoint == "localhost:9000"
     assert settings.access_key.get_secret_value() == "minioadmin"
@@ -231,3 +234,16 @@ def test_local_dev_settings_defaults() -> None:
     assert settings.bucket == "orchid-dev"
     assert settings.create_bucket_if_missing is True
     assert settings.secure is False
+
+
+def test_local_dev_settings_raises_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ORCHID_ENV", "production")
+    with pytest.raises(RuntimeError, match="must not be used in production"):
+        minio_local_dev_settings(access_key="ak", secret_key="sk")
+
+
+def test_local_dev_settings_emits_warning() -> None:
+    with pytest.warns(UserWarning, match="local development only"):
+        minio_local_dev_settings(access_key="ak", secret_key="sk")

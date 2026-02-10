@@ -42,10 +42,10 @@ class BucketBootstrapResult:
 
 def minio_local_dev_settings(
     *,
+    access_key: str,
+    secret_key: str,
     bucket: str = "orchid-dev",
     endpoint: str = "localhost:9000",
-    access_key: str = "minioadmin",
-    secret_key: str = "minioadmin",
     secure: bool = False,
     region: str | None = None,
     create_bucket_if_missing: bool = True,
