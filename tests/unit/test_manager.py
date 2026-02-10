@@ -1,10 +1,12 @@
 """Tests for ResourceManager."""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from orchid_commons import ResourceManager
 from orchid_commons.runtime import manager as manager_module
-from orchid_commons.runtime.errors import ResourceNotFoundError
+from orchid_commons.runtime.errors import ResourceNotFoundError, ShutdownError
 
 
 class TestResourceManager:
@@ -33,6 +35,57 @@ class TestResourceManager:
         await manager.close_all()
 
         assert not manager.has("test")
+
+    async def test_startup_rolls_back_on_partial_failure(self) -> None:
+        manager = ResourceManager()
+
+        # Pre-register two resources with mock close methods
+        res_a = MagicMock()
+        res_a.close = AsyncMock()
+        res_b = MagicMock()
+        res_b.close = AsyncMock()
+        manager.register("a", res_a)
+        manager.register("b", res_b)
+
+        # Patch bootstrap_resources to simulate a third factory failing
+        async def _failing_bootstrap(settings: object, mgr: ResourceManager) -> None:
+            raise RuntimeError("factory exploded")
+
+        monkeypatch = pytest.MonkeyPatch()
+        monkeypatch.setattr(manager_module, "bootstrap_resources", _failing_bootstrap)
+        try:
+            with pytest.raises(RuntimeError, match="factory exploded"):
+                await manager.startup(MagicMock())
+
+            # Both previously registered resources should have been closed
+            res_a.close.assert_awaited_once()
+            res_b.close.assert_awaited_once()
+
+            # _resources should be empty after rollback
+            assert not manager._resources
+        finally:
+            monkeypatch.undo()
+
+    async def test_close_all_retains_resources_that_failed(self) -> None:
+        manager = ResourceManager()
+
+        good = MagicMock()
+        good.close = AsyncMock()
+
+        bad = MagicMock()
+        bad.close = AsyncMock(side_effect=RuntimeError("close failed"))
+
+        manager.register("good", good)
+        manager.register("bad", bad)
+
+        with pytest.raises(ShutdownError) as exc_info:
+            await manager.close_all()
+
+        # The successfully closed resource should be removed
+        assert not manager.has("good")
+        # The failed resource should remain for potential retry
+        assert manager.has("bad")
+        assert "bad" in exc_info.value.errors
 
     def test_builtin_factories_include_data_and_queue_resources(self) -> None:
         original_factories = dict(manager_module._RESOURCE_FACTORIES)

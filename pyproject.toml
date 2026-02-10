@@ -11,17 +11,20 @@ requires-python = ">=3.11"
 authors = [{ name = "Orchid" }]
 license = { text = "MIT" }
 dependencies = [
-  "aiosqlite>=0.20.0",
   "pydantic>=2.0",
 ]
 
 [project.optional-dependencies]
 db = [
+  "aiosqlite>=0.20.0",
   "asyncpg>=0.29.0",
   "redis>=5.0.0",
   "motor>=3.6.0",
   "aio-pika>=9.4.0",
   "qdrant-client>=1.9.0",
+]
+sqlite = [
+  "aiosqlite>=0.20.0",
 ]
 sql = [
   "asyncpg>=0.29.0",

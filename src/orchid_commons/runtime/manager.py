@@ -124,6 +124,11 @@ class ResourceManager:
                         f"Required resources not configured: {', '.join(missing)}"
                     )
         except Exception as exc:
+            # Best-effort cleanup of already-initialized resources
+            try:
+                await self.close_all()
+            except Exception:
+                pass
             self._metrics_recorder().observe_operation(
                 resource="runtime",
                 operation="startup",
@@ -164,7 +169,10 @@ class ResourceManager:
                 except Exception as exc:
                     errors[name] = exc
 
-            self._resources.clear()
+            # Only remove successfully closed resources
+            for name in list(self._resources):
+                if name not in errors:
+                    del self._resources[name]
 
             if errors:
                 raise ShutdownError(errors)

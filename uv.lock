@@ -1203,13 +1203,13 @@ name = "orchid-skills-commons"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "aiosqlite" },
     { name = "pydantic" },
 ]
 
 [package.optional-dependencies]
 all = [
     { name = "aio-pika" },
+    { name = "aiosqlite" },
     { name = "asyncpg" },
     { name = "langfuse" },
     { name = "minio" },
@@ -1226,6 +1226,7 @@ blob = [
 ]
 db = [
     { name = "aio-pika" },
+    { name = "aiosqlite" },
     { name = "asyncpg" },
     { name = "motor" },
     { name = "qdrant-client" },
@@ -1261,12 +1262,16 @@ redis = [
 sql = [
     { name = "asyncpg" },
 ]
+sqlite = [
+    { name = "aiosqlite" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "aio-pika", marker = "extra == 'db'", specifier = ">=9.4.0" },
     { name = "aio-pika", marker = "extra == 'rabbitmq'", specifier = ">=9.4.0" },
-    { name = "aiosqlite", specifier = ">=0.20.0" },
+    { name = "aiosqlite", marker = "extra == 'db'", specifier = ">=0.20.0" },
+    { name = "aiosqlite", marker = "extra == 'sqlite'", specifier = ">=0.20.0" },
     { name = "asyncpg", marker = "extra == 'db'", specifier = ">=0.29.0" },
     { name = "asyncpg", marker = "extra == 'sql'", specifier = ">=0.29.0" },
     { name = "langfuse", marker = "extra == 'observability'", specifier = ">=3.0.0" },
@@ -1290,7 +1295,7 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
     { name = "testcontainers", extras = ["postgres"], marker = "extra == 'dev'", specifier = ">=4.8.2" },
 ]
-provides-extras = ["db", "sql", "redis", "mongodb", "rabbitmq", "qdrant", "blob", "observability", "all", "dev"]
+provides-extras = ["db", "sqlite", "sql", "redis", "mongodb", "rabbitmq", "qdrant", "blob", "observability", "all", "dev"]
 
 [[package]]
 name = "packaging"
