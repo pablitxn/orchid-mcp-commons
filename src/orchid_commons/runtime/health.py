@@ -16,7 +16,7 @@ class HealthStatus:
     healthy: bool
     latency_ms: float
     message: str | None = None
-    details: dict[str, str] | None = None
+    details: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
