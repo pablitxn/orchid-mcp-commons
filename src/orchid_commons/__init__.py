@@ -62,6 +62,8 @@ from orchid_commons.db import (
     create_sqlite_resource,
 )
 from orchid_commons.observability import (
+    APIError,
+    ErrorResponse,
     ObservableMixin,
     LangfuseClient,
     LangfuseClientSettings,
@@ -69,8 +71,10 @@ from orchid_commons.observability import (
     OpenTelemetryMetricsRecorder,
     OtlpRetrySettings,
     bootstrap_observability,
+    create_aiohttp_error_middleware,
     create_aiohttp_observability_middleware,
     create_fastapi_correlation_dependency,
+    create_fastapi_error_middleware,
     create_fastapi_observability_middleware,
     create_langfuse_client,
     get_default_langfuse_client,
@@ -128,6 +132,7 @@ from orchid_commons.runtime.manager import (
 )
 
 __all__ = [
+    "APIError",
     "AppSettings",
     "BlobAuthError",
     "BlobError",
@@ -138,6 +143,7 @@ __all__ = [
     "BlobTransientError",
     "BucketBootstrapResult",
     "ConfigError",
+    "ErrorResponse",
     "ConfigFileNotFoundError",
     "ConfigValidationError",
     "CorrelationIds",
@@ -196,8 +202,10 @@ __all__ = [
     "configure_prometheus_metrics",
     "correlation_scope",
     "correlation_scope_from_headers",
+    "create_aiohttp_error_middleware",
     "create_aiohttp_observability_middleware",
     "create_fastapi_correlation_dependency",
+    "create_fastapi_error_middleware",
     "create_fastapi_observability_middleware",
     "create_langfuse_client",
     "create_minio_profile",

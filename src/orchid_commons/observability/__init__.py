@@ -7,6 +7,12 @@ from orchid_commons.observability.http import (
     create_fastapi_observability_middleware,
     http_request_scope,
 )
+from orchid_commons.observability.http_errors import (
+    APIError,
+    ErrorResponse,
+    create_aiohttp_error_middleware,
+    create_fastapi_error_middleware,
+)
 from orchid_commons.observability.langfuse import (
     LangfuseClient,
     LangfuseClientSettings,
@@ -29,6 +35,8 @@ from orchid_commons.observability.otel import (
 )
 
 __all__ = [
+    "APIError",
+    "ErrorResponse",
     "ObservableMixin",
     "LangfuseClient",
     "LangfuseClientSettings",
@@ -36,8 +44,10 @@ __all__ = [
     "OpenTelemetryMetricsRecorder",
     "OtlpRetrySettings",
     "bootstrap_observability",
+    "create_aiohttp_error_middleware",
     "create_aiohttp_observability_middleware",
     "create_fastapi_correlation_dependency",
+    "create_fastapi_error_middleware",
     "create_fastapi_observability_middleware",
     "create_langfuse_client",
     "get_default_langfuse_client",
