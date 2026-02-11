@@ -28,13 +28,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # Workaround for repository rename: CodeQL finalize may still reference
+      # the previous workspace path in /home/runner/work/orchid-skills-commons.
+      - name: Prepare legacy workspace path for CodeQL
+        if: ${{ github.workspace != '/home/runner/work/orchid-skills-commons/orchid-skills-commons' }}
+        run: |
+          legacy_workspace="/home/runner/work/orchid-skills-commons/orchid-skills-commons"
+          mkdir -p "$legacy_workspace"
+          rsync -a --delete --exclude '.git' "$GITHUB_WORKSPACE"/ "$legacy_workspace"/
+
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: none
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
