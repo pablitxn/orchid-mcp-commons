@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import Any, TypeAlias
@@ -79,11 +80,10 @@ def create_fastapi_observability_middleware(
             _set_fastapi_request_state(request, correlation)
             try:
                 response = await call_next(request)
-            except Exception as exc:
-                status_holder["value"] = _coerce_status_code(getattr(exc, "status_code", None))
-                raise
-
-            status_holder["value"] = _coerce_status_code(getattr(response, "status_code", None))
+                status_holder["value"] = _coerce_status_code(getattr(response, "status_code", None))
+            finally:
+                if (exc := sys.exception()) is not None:
+                    status_holder["value"] = _coerce_status_code(getattr(exc, "status_code", None))
 
         if (
             set_response_request_id
@@ -145,13 +145,12 @@ def create_aiohttp_observability_middleware(
             _set_aiohttp_request_context(request, correlation)
             try:
                 response = await handler(request)
-            except Exception as exc:
-                status_holder["value"] = _coerce_status_code(
-                    getattr(exc, "status", None) or getattr(exc, "status_code", None)
-                )
-                raise
-
-            status_holder["value"] = _coerce_status_code(getattr(response, "status", None))
+                status_holder["value"] = _coerce_status_code(getattr(response, "status", None))
+            finally:
+                if (exc := sys.exception()) is not None:
+                    status_holder["value"] = _coerce_status_code(
+                        getattr(exc, "status", None) or getattr(exc, "status_code", None)
+                    )
 
         if (
             set_response_request_id
@@ -197,7 +196,7 @@ def _coerce_headers(headers: object) -> Mapping[str, str]:
     if callable(items):
         try:
             return {str(key): str(value) for key, value in items()}
-        except Exception:
+        except (TypeError, ValueError):
             return {}
     return {}
 
@@ -280,7 +279,7 @@ def _set_fastapi_request_state(request: Any, correlation: CorrelationIds) -> Non
         state.request_id = correlation.request_id
         state.trace_id = correlation.trace_id
         state.span_id = correlation.span_id
-    except Exception:
+    except (AttributeError, TypeError):
         logger.debug("Failed to set FastAPI request state", exc_info=True)
         return
 
@@ -291,7 +290,7 @@ def _set_aiohttp_request_context(request: Any, correlation: CorrelationIds) -> N
         request["request_id"] = correlation.request_id
         request["trace_id"] = correlation.trace_id
         request["span_id"] = correlation.span_id
-    except Exception:
+    except (KeyError, TypeError):
         logger.debug("Failed to set aiohttp request context", exc_info=True)
         return
 
@@ -304,7 +303,7 @@ def _set_header_if_missing(headers: Any, key: str, value: str) -> None:
             result = getter(key)
             if result is not None:
                 existing = str(result)
-        except Exception:
+        except (AttributeError, KeyError, TypeError, ValueError):
             existing = None
 
     if existing:
@@ -312,7 +311,7 @@ def _set_header_if_missing(headers: Any, key: str, value: str) -> None:
 
     try:
         headers[key] = value
-    except Exception:
+    except (KeyError, TypeError):
         return
 
 

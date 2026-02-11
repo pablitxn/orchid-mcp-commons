@@ -92,11 +92,11 @@ async def bootstrap_bucket(
 
     try:
         await asyncio.to_thread(client.make_bucket, bucket, location=region)
-    except Exception:
+    except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
         # Handle race where another process created it between checks.
         exists = await asyncio.to_thread(client.bucket_exists, bucket)
         if not exists:
-            raise
+            raise exc
         return BucketBootstrapResult(bucket=bucket, exists=True, created=False)
 
     return BucketBootstrapResult(bucket=bucket, exists=False, created=True)
@@ -153,7 +153,7 @@ class MinioProfile(S3BlobStorage):
 
         try:
             exists = await asyncio.to_thread(self._bootstrap_client.bucket_exists, self.bucket)
-        except Exception as exc:
+        except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
             latency_ms = (perf_counter() - start) * 1000
             return HealthStatus(
                 healthy=False,

@@ -1,6 +1,6 @@
 """Observability helpers for tracing and telemetry backends."""
 
-from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability.observable import ObservableMixin
 from orchid_commons.observability.http import (
     create_aiohttp_observability_middleware,
     create_fastapi_correlation_dependency,

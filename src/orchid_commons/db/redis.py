@@ -7,7 +7,7 @@ from time import perf_counter
 from typing import Any, ClassVar
 
 from orchid_commons.config.resources import RedisSettings
-from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError, OrchidCommonsError
 from orchid_commons.runtime.health import HealthStatus

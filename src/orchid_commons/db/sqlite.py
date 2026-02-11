@@ -10,7 +10,7 @@ from typing import Any
 
 from orchid_commons.config.resources import SqliteSettings
 from orchid_commons.db._sql_utils import collect_migration_files, read_sql_file
-from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus

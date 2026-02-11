@@ -12,7 +12,7 @@ from typing import Any, ClassVar, TypeVar
 
 from orchid_commons.config.resources import PostgresSettings
 from orchid_commons.db._sql_utils import collect_migration_files, read_sql_file
-from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
@@ -121,12 +121,14 @@ class PostgresProvider(ObservableMixin):
         query: str,
         params: Sequence[Any] | None = None,
         *,
-        commit: bool = False,  # kept for SQLite API compatibility
+        commit: bool = False,
     ) -> str:
         """Execute a SQL statement and return asyncpg status text."""
-        del commit
 
         async def operation(connection: Any) -> str:
+            if commit:
+                async with connection.transaction():
+                    return await connection.execute(query, *(params or ()))
             return await connection.execute(query, *(params or ()))
 
         return await self._run_with_retries(operation, operation_name="execute")
@@ -136,14 +138,17 @@ class PostgresProvider(ObservableMixin):
         query: str,
         rows: Iterable[Sequence[Any]],
         *,
-        commit: bool = False,  # kept for SQLite API compatibility
+        commit: bool = False,
     ) -> None:
         """Execute a SQL statement for multiple parameter rows."""
-        del commit
         values = [tuple(row) for row in rows]
 
         async def operation(connection: Any) -> None:
-            await connection.executemany(query, values)
+            if commit:
+                async with connection.transaction():
+                    await connection.executemany(query, values)
+            else:
+                await connection.executemany(query, values)
             return None
 
         await self._run_with_retries(operation, operation_name="executemany")
@@ -246,7 +251,7 @@ class PostgresProvider(ObservableMixin):
                 latency_ms=(time.perf_counter() - start) * 1000,
                 message="ok",
             )
-        except Exception as exc:
+        except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
             return HealthStatus(
                 healthy=False,
                 latency_ms=(time.perf_counter() - start) * 1000,
@@ -262,7 +267,7 @@ class PostgresProvider(ObservableMixin):
                 await asyncio.wait_for(self._pool.close(), timeout=self.close_timeout_seconds)
             except TimeoutError:
                 self._pool.terminate()
-        except Exception as exc:
+        except (OSError, TimeoutError, RuntimeError) as exc:
             self._observe_error("close", started, exc)
             raise
         finally:
@@ -299,13 +304,17 @@ class PostgresProvider(ObservableMixin):
                     self._observe_operation(operation_name, started, success=True)
                     self._observe_postgres_pool_usage()
                     return result
-            except Exception as exc:
-                if not isinstance(exc, retryable_exceptions) or attempt >= self.retry_attempts:
+            except retryable_exceptions as exc:
+                if attempt >= self.retry_attempts:
                     self._observe_error(operation_name, started, exc)
                     self._observe_postgres_pool_usage()
                     raise
                 attempt += 1
                 await asyncio.sleep(self.retry_backoff_seconds * attempt)
+            except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
+                self._observe_error(operation_name, started, exc)
+                self._observe_postgres_pool_usage()
+                raise
 
     def _observe_postgres_pool_usage(self) -> None:
         size = self._pool_metric("get_size")
@@ -331,7 +340,7 @@ class PostgresProvider(ObservableMixin):
             return None
         try:
             return int(getter())
-        except Exception:
+        except (TypeError, ValueError):
             return None
 
 

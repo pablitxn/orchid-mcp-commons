@@ -26,6 +26,15 @@ ObservationType = Literal["span", "generation"]
 _T = TypeVar("_T")
 _DEFAULT_LANGFUSE_CLIENT: LangfuseClient | None = None
 _LANGFUSE_LOCK = threading.Lock()
+_INPUT_ALIAS_UNSET = object()
+_LANGFUSE_RECOVERABLE_ERRORS = (
+    AttributeError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 class LangfuseObservation(Protocol):
@@ -56,7 +65,7 @@ class LangfuseClientProtocol(Protocol):
 
 class _NoopObservation:
     def update(self, **kwargs: Any) -> None:
-        del kwargs
+        _ = self, kwargs
 
 
 @dataclass(slots=True, frozen=True)
@@ -166,7 +175,7 @@ class LangfuseClient:
         if self._client is not None:
             try:
                 return self._client.get_current_trace_id()
-            except Exception:
+            except _LANGFUSE_RECOVERABLE_ERRORS:
                 return _current_otel_trace_id()
         return _current_otel_trace_id()
 
@@ -199,16 +208,17 @@ class LangfuseClient:
         self,
         *,
         name: str,
-        input: Any | None = None,
+        input_payload: Any | None = None,
         output: Any | None = None,
         metadata: Mapping[str, Any] | None = None,
         trace_id: str | None = None,
         **kwargs: Any,
     ) -> AbstractContextManager[Any]:
+        resolved_input = _resolve_input_alias(input_payload=input_payload, kwargs=kwargs)
         return self._start_observation(
             as_type="span",
             name=name,
-            input=input,
+            input_payload=resolved_input,
             output=output,
             metadata=metadata,
             trace_id=trace_id,
@@ -219,7 +229,7 @@ class LangfuseClient:
         self,
         *,
         name: str,
-        input: Any | None = None,
+        input_payload: Any | None = None,
         output: Any | None = None,
         metadata: Mapping[str, Any] | None = None,
         model: str | None = None,
@@ -229,6 +239,7 @@ class LangfuseClient:
         trace_id: str | None = None,
         **kwargs: Any,
     ) -> AbstractContextManager[Any]:
+        resolved_input = _resolve_input_alias(input_payload=input_payload, kwargs=kwargs)
         extra: dict[str, Any] = dict(kwargs)
         if model is not None:
             extra["model"] = model
@@ -242,7 +253,7 @@ class LangfuseClient:
         return self._start_observation(
             as_type="generation",
             name=name,
-            input=input,
+            input_payload=resolved_input,
             output=output,
             metadata=metadata,
             trace_id=trace_id,
@@ -288,7 +299,7 @@ class LangfuseClient:
         *,
         as_type: ObservationType,
         name: str,
-        input: Any | None,
+        input_payload: Any | None,
         output: Any | None,
         metadata: Mapping[str, Any] | None,
         trace_id: str | None,
@@ -306,8 +317,8 @@ class LangfuseClient:
         if normalized_metadata is not None:
             payload["metadata"] = normalized_metadata
 
-        if input is not None:
-            payload["input"] = _normalize_payload(input)
+        if input_payload is not None:
+            payload["input"] = _normalize_payload(input_payload)
         if output is not None:
             payload["output"] = _normalize_payload(output)
 
@@ -323,7 +334,7 @@ class LangfuseClient:
             return False
         try:
             return self._client.get_current_observation_id() is None
-        except Exception:
+        except _LANGFUSE_RECOVERABLE_ERRORS:
             return False
 
     def _observe(
@@ -351,14 +362,14 @@ class LangfuseClient:
                     with self._start_observation(
                         as_type=as_type,
                         name=observation_name,
-                        input=observation_input,
+                        input_payload=observation_input,
                         output=None,
                         metadata=metadata,
                         trace_id=None,
                         **start_kwargs,
                     ) as observation:
                         try:
-                            result = await cast(Callable[..., Any], func)(*args, **kwargs)
+                            result = await func(*args, **kwargs)
                         except Exception as exc:
                             _mark_observation_error(observation, exc)
                             raise
@@ -369,7 +380,7 @@ class LangfuseClient:
                             )
                         return result
 
-                return cast(Callable[..., _T], async_wrapper)
+                return async_wrapper  # type: ignore[return-value]
 
             @wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -381,14 +392,14 @@ class LangfuseClient:
                 with self._start_observation(
                     as_type=as_type,
                     name=observation_name,
-                    input=observation_input,
+                    input_payload=observation_input,
                     output=None,
                     metadata=metadata,
                     trace_id=None,
                     **start_kwargs,
                 ) as observation:
                     try:
-                        result = cast(Callable[..., Any], func)(*args, **kwargs)
+                        result = func(*args, **kwargs)
                     except Exception as exc:
                         _mark_observation_error(observation, exc)
                         raise
@@ -399,7 +410,7 @@ class LangfuseClient:
                         )
                     return result
 
-            return cast(Callable[..., _T], sync_wrapper)
+            return sync_wrapper  # type: ignore[return-value]
 
         return decorator
 
@@ -536,13 +547,22 @@ def _capture_call_input(args: tuple[Any, ...], kwargs: dict[str, Any]) -> dict[s
     return payload
 
 
+def _resolve_input_alias(*, input_payload: Any | None, kwargs: dict[str, Any]) -> Any | None:
+    aliased_input = kwargs.pop("input", _INPUT_ALIAS_UNSET)
+    if aliased_input is _INPUT_ALIAS_UNSET:
+        return input_payload
+    if input_payload is not None:
+        raise TypeError("Use either 'input_payload' or 'input', not both.")
+    return aliased_input
+
+
 def _safe_observation_update(observation: Any, **kwargs: Any) -> None:
     update = getattr(observation, "update", None)
     if update is None or not callable(update):
         return
     try:
         update(**kwargs)
-    except Exception:
+    except _LANGFUSE_RECOVERABLE_ERRORS:
         # Never break business logic because tracing failed.
         logger.debug("Langfuse observation update failed", exc_info=True)
         return
@@ -576,7 +596,7 @@ def _normalize_payload(value: Any) -> Any:
 def _current_otel_trace_id() -> str | None:
     try:
         from opentelemetry import trace as otel_trace
-    except Exception:
+    except ImportError:
         return None
 
     span = otel_trace.get_current_span()

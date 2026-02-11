@@ -11,8 +11,8 @@ from time import perf_counter
 from typing import Any, Literal, Protocol, runtime_checkable
 
 from orchid_commons.config.resources import MinioSettings, R2Settings
-from orchid_commons.observability._observable import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
+from orchid_commons.observability.observable import ObservableMixin
 from orchid_commons.runtime.errors import MissingDependencyError, OrchidCommonsError
 from orchid_commons.runtime.health import HealthStatus
 
@@ -179,7 +179,7 @@ class S3CompatibleClient(Protocol):
     def bucket_exists(self, bucket_name: str) -> bool: ...
 
 
-class S3BlobStorage(ObservableMixin, BlobStorage):
+class S3BlobStorage(ObservableMixin):
     """S3-compatible blob storage implementation.
 
     This adapter targets MinIO-compatible semantics and works with providers such

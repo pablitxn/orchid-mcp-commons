@@ -31,24 +31,21 @@ def resolve_placeholders(
         PlaceholderResolutionError: If strict=True and a placeholder cannot be resolved.
     """
     result: dict[str, Any] = {}
-
     for key, value in data.items():
         current_path = f"{_path}.{key}" if _path else key
-
-        if isinstance(value, dict):
-            result[key] = resolve_placeholders(value, strict=strict, _path=current_path)
-        elif isinstance(value, list):
-            result[key] = [
-                _resolve_value(item, f"{current_path}[{i}]", strict) for i, item in enumerate(value)
-            ]
-        else:
-            result[key] = _resolve_value(value, current_path, strict)
-
+        result[key] = _resolve_value(value, current_path, strict)
     return result
 
 
 def _resolve_value(value: Any, path: str, strict: bool) -> Any:
-    """Resolve placeholders in a single value."""
+    """Resolve placeholders recursively for dict/list/scalar values."""
+    if isinstance(value, dict):
+        return {
+            key: _resolve_value(item, f"{path}.{key}", strict)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_resolve_value(item, f"{path}[{index}]", strict) for index, item in enumerate(value)]
     if not isinstance(value, str):
         return value
 

@@ -124,11 +124,11 @@ class ResourceManager:
                     raise MissingRequiredResourceError(
                         f"Required resources not configured: {', '.join(missing)}"
                     )
-        except Exception as exc:
+        except (MissingRequiredResourceError, OSError, TimeoutError, RuntimeError, ValueError) as exc:
             # Best-effort cleanup of already-initialized resources
             try:
                 await self.close_all()
-            except Exception:
+            except (ShutdownError, OSError, TimeoutError, RuntimeError):
                 pass
             self._metrics_recorder().observe_operation(
                 resource="runtime",
@@ -167,7 +167,7 @@ class ResourceManager:
                     maybe_awaitable = close()
                     if hasattr(maybe_awaitable, "__await__"):
                         await maybe_awaitable
-                except Exception as exc:
+                except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
                     errors[name] = exc
 
             # Only remove successfully closed resources
@@ -177,7 +177,7 @@ class ResourceManager:
 
             if errors:
                 raise ShutdownError(errors)
-        except Exception as exc:
+        except (ShutdownError, OSError, TimeoutError, RuntimeError) as exc:
             self._metrics_recorder().observe_operation(
                 resource="runtime",
                 operation="shutdown",
@@ -247,7 +247,7 @@ def _optional_health_checks(
 def _active_observability_handle() -> Any | None:
     try:
         from orchid_commons.observability.otel import get_observability_handle
-    except Exception:
+    except ImportError:
         return None
     return get_observability_handle()
 
@@ -265,7 +265,7 @@ def _threaded_health_check(
 def _active_langfuse_client() -> Any | None:
     try:
         from orchid_commons.observability.langfuse import get_default_langfuse_client
-    except Exception:
+    except ImportError:
         return None
     return get_default_langfuse_client()
 

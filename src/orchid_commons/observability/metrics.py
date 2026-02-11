@@ -37,6 +37,10 @@ def _collector_or_create(registry: Any, name: str, factory: Any) -> Any:
     return factory()
 
 
+def _consume_unused(*_values: object) -> None:
+    """Mark intentionally-unused parameters as consumed."""
+
+
 class MetricsRecorder(Protocol):
     """Observer contract for runtime/resource metrics."""
 
@@ -76,34 +80,34 @@ class MetricsRecorder(Protocol):
 class NoopMetricsRecorder:
     """No-op recorder used when metrics are not configured."""
 
+    @staticmethod
     def observe_operation(
-        self,
         *,
         resource: str,
         operation: str,
         duration_seconds: float,
         success: bool,
     ) -> None:
-        del resource, operation, duration_seconds, success
+        _consume_unused(resource, operation, duration_seconds, success)
 
+    @staticmethod
     def observe_error(
-        self,
         *,
         resource: str,
         operation: str,
         error_type: str,
     ) -> None:
-        del resource, operation, error_type
+        _consume_unused(resource, operation, error_type)
 
+    @staticmethod
     def observe_postgres_pool(
-        self,
         *,
         used_connections: int,
         idle_connections: int,
         min_connections: int,
         max_connections: int,
     ) -> None:
-        del used_connections, idle_connections, min_connections, max_connections
+        _consume_unused(used_connections, idle_connections, min_connections, max_connections)
 
 
 class PrometheusMetricsRecorder:
@@ -323,8 +327,7 @@ async def _asgi_send_response(
 def create_prometheus_asgi_app(*, registry: Any | None = None) -> Any:
     """Create a tiny ASGI app exposing Prometheus metrics at `/metrics` or `/`."""
 
-    async def app(scope: dict[str, Any], receive: Any, send: Any) -> None:
-        del receive
+    async def app(scope: dict[str, Any], _receive: Any, send: Any) -> None:
         if scope.get("type") != "http":
             return
 

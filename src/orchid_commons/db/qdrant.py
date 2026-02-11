@@ -14,13 +14,12 @@ from orchid_commons.db.vector import (
     VectorOperationError,
     VectorPoint,
     VectorSearchResult,
-    VectorStore,
     VectorStoreError,
     VectorTransientError,
     VectorValidationError,
 )
-from orchid_commons.observability._observable import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
+from orchid_commons.observability.observable import ObservableMixin
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
 
@@ -207,7 +206,7 @@ def _build_filter(filters: Mapping[str, Any], *, models: Any) -> Any:
 
 
 @dataclass(slots=True)
-class QdrantVectorStore(ObservableMixin, VectorStore):
+class QdrantVectorStore(ObservableMixin):
     """Managed Qdrant client with common vector operations."""
 
     _resource_name: ClassVar[str] = "qdrant"

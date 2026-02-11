@@ -485,7 +485,7 @@ def _render_event_message(event: object, args: tuple[object, ...]) -> str:
     if isinstance(event, str):
         try:
             return event % args
-        except Exception:
+        except (TypeError, ValueError):
             pass
 
     parts = [base_message, *(str(arg) for arg in args)]
@@ -532,7 +532,7 @@ def _resolve_log_level(level: int | str) -> int:
 def _current_otel_trace_context() -> tuple[str | None, str | None]:
     try:
         from opentelemetry import trace as otel_trace
-    except Exception:
+    except ImportError:
         return None, None
 
     span = otel_trace.get_current_span()

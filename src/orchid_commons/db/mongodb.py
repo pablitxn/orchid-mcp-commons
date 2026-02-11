@@ -14,7 +14,7 @@ from orchid_commons.db.document import (
     DocumentStoreError,
     DocumentTransientError,
 )
-from orchid_commons.observability._observable import ObservableMixin
+from orchid_commons.observability import ObservableMixin
 from orchid_commons.observability.metrics import MetricsRecorder
 from orchid_commons.runtime.errors import MissingDependencyError
 from orchid_commons.runtime.health import HealthStatus
@@ -169,6 +169,10 @@ class MongoDbResource(ObservableMixin):
         """Find multiple documents with optional sort and limit.
 
         Args:
+            collection: Collection name to query.
+            query: MongoDB filter document.
+            projection: Optional field projection.
+            sort: Optional sort directives as ``(field, direction)`` tuples.
             limit: Maximum number of documents to return.  Must be a positive
                    integer or ``None`` (no limit, capped to 1 000 for safety).
                    Passing ``0`` or a negative value raises ``ValueError``.

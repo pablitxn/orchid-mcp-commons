@@ -304,6 +304,26 @@ def test_start_span_does_not_attach_trace_context_when_observation_is_active(
     assert "trace_context" not in payload
 
 
+def test_start_span_accepts_legacy_input_kwarg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_client = FakeLangfuseSdkClient()
+
+    monkeypatch.setattr(
+        langfuse_module,
+        "_build_langfuse_sdk_client",
+        lambda settings: fake_client,
+    )
+
+    client = create_langfuse_client(settings=_build_enabled_settings())
+
+    with client.start_span(name="legacy.input", input={"prompt": "hola"}):
+        pass
+
+    payload = fake_client.start_calls[0]
+    assert payload["input"] == {"prompt": "hola"}
+
+
 def test_observe_generation_decorator_sync_captures_output(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

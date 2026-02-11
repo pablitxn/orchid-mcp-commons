@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 import threading
 import time
 from collections.abc import Callable
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager, contextmanager, suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -216,13 +217,7 @@ class OpenTelemetryMetricsRecorder:
             },
         )
         try:
-            try:
-                from opentelemetry.trace import Status, StatusCode
-            except ImportError:
-                pass
-            else:
-                code = StatusCode.OK if success else StatusCode.ERROR
-                span.set_status(Status(code))
+            _set_span_status(span=span, success=success)
         finally:
             span.end(end_time=end_time_ns)
 
@@ -407,29 +402,19 @@ def request_span(
     with start_span(span_name, attributes=span_attributes) as span:
         try:
             yield span
-        except Exception as exc:
-            _mark_span_error(span, exc)
+        finally:
+            current_exception = sys.exc_info()[1]
             resolved_status_code = _resolve_status_code(status_code)
             if resolved_status_code is not None and span is not None:
                 span.set_attribute("http.status_code", resolved_status_code)
+            if isinstance(current_exception, Exception):
+                _mark_span_error(span, current_exception)
             _record_request_metrics(
                 method=method,
                 route=route,
                 status_code=resolved_status_code,
                 duration_seconds=time.perf_counter() - started,
-                success=False,
-            )
-            raise
-        else:
-            resolved_status_code = _resolve_status_code(status_code)
-            if resolved_status_code is not None and span is not None:
-                span.set_attribute("http.status_code", resolved_status_code)
-            _record_request_metrics(
-                method=method,
-                route=route,
-                status_code=resolved_status_code,
-                duration_seconds=time.perf_counter() - started,
-                success=True,
+                success=current_exception is None,
             )
 
 
@@ -589,15 +574,29 @@ def _record_request_metrics(
     instruments.duration_seconds.record(max(0.0, duration_seconds), attributes=attributes)
 
 
+def _set_span_status(
+    *,
+    span: Any,
+    success: bool,
+    description: str | None = None,
+) -> None:
+    try:
+        from opentelemetry import trace as otel_trace
+    except ImportError:
+        return
+    else:
+        code = otel_trace.StatusCode.OK if success else otel_trace.StatusCode.ERROR
+        span.set_status(otel_trace.Status(code, description))
+
+
 def _resolve_status_code(
     status_code: int | None | Callable[[], int | None],
 ) -> int | None:
     value: int | None
     if callable(status_code):
-        try:
+        value = None
+        with suppress(Exception):
             value = status_code()
-        except Exception:
-            return None
     else:
         value = status_code
 
@@ -614,8 +613,4 @@ def _mark_span_error(span: Any | None, exc: Exception) -> None:
         return
 
     span.record_exception(exc)
-    try:
-        from opentelemetry.trace import Status, StatusCode
-    except ImportError:
-        return
-    span.set_status(Status(StatusCode.ERROR, str(exc)))
+    _set_span_status(span=span, success=False, description=str(exc))

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import traceback
 from collections.abc import Awaitable, Callable, Sequence
@@ -46,6 +47,41 @@ class ErrorResponse:
     log_level: int = logging.WARNING
 
 
+class _MinimalJSONResponse:
+    """Fallback JSON response when HTTP framework dependencies are absent."""
+
+    def __init__(self, *, content: dict[str, Any], status_code: int) -> None:
+        self.status_code = status_code
+        self.status = status_code  # aiohttp compatibility
+        self.body = json.dumps(content).encode()
+
+
+def _fastapi_json_response(*, content: dict[str, Any], status_code: int) -> Any:
+    try:
+        from starlette.responses import JSONResponse
+    except ModuleNotFoundError:
+        return _MinimalJSONResponse(content=content, status_code=status_code)
+    return JSONResponse(status_code=status_code, content=content)
+
+
+def _aiohttp_json_response(*, content: dict[str, Any], status_code: int) -> Any:
+    try:
+        from aiohttp import web as aiohttp_web
+    except ModuleNotFoundError:
+        return _MinimalJSONResponse(content=content, status_code=status_code)
+    return aiohttp_web.json_response(content, status=status_code)
+
+
+def _decorate_aiohttp_middleware(
+    middleware: Callable[[Any, AiohttpHandler], Awaitable[Any]],
+) -> Callable[[Any, AiohttpHandler], Awaitable[Any]]:
+    try:
+        from aiohttp import web as aiohttp_web
+    except ModuleNotFoundError:
+        return middleware
+    return aiohttp_web.middleware(middleware)  # type: ignore[return-value]
+
+
 def _resolve_request_id(request: Any) -> str:
     """Extract request ID from request state, correlation context, or fallback."""
     # Try request.state.request_id (FastAPI)
@@ -62,12 +98,9 @@ def _resolve_request_id(request: Any) -> str:
             return str(req_id)
 
     # Try correlation context
-    try:
-        correlation = get_correlation_ids()
-        if correlation.request_id is not None:
-            return correlation.request_id
-    except Exception:
-        pass
+    correlation = get_correlation_ids()
+    if correlation.request_id is not None:
+        return correlation.request_id
 
     return "unknown"
 
@@ -173,19 +206,7 @@ def create_fastapi_error_middleware(
                 error_response.message,
                 error_response.details,
             )
-            # Import here to avoid hard dependency at module level
-            try:
-                from starlette.responses import JSONResponse
-            except ImportError:
-                from json import dumps
-
-                class _MinimalJSON:  # type: ignore[no-redef]
-                    def __init__(self, content: Any, status_code: int) -> None:
-                        self.status_code = status_code
-                        self.body = dumps(content).encode()
-
-                return _MinimalJSON(content=body, status_code=error_response.status_code)  # type: ignore[return-value]
-            return JSONResponse(status_code=error_response.status_code, content=body)
+            return _fastapi_json_response(content=body, status_code=error_response.status_code)
 
     return middleware
 
@@ -210,27 +231,10 @@ def create_aiohttp_error_middleware(
                 error_response.message,
                 error_response.details,
             )
-            try:
-                from aiohttp import web
-
-                return web.json_response(body, status=error_response.status_code)
-            except ImportError:
-                from json import dumps
-
-                class _MinimalJSON:  # type: ignore[no-redef]
-                    def __init__(self, content: Any, status_code: int) -> None:
-                        self.status = status_code
-                        self.body = dumps(content).encode()
-
-                return _MinimalJSON(content=body, status_code=error_response.status_code)  # type: ignore[return-value]
+            return _aiohttp_json_response(content=body, status_code=error_response.status_code)
 
     if decorate:
-        try:
-            from aiohttp import web
-
-            return web.middleware(middleware)  # type: ignore[return-value]
-        except ImportError:
-            pass
+        return _decorate_aiohttp_middleware(middleware)
     return middleware
 
 
