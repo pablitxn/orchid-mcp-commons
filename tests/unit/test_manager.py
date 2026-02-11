@@ -106,9 +106,7 @@ class TestResourceManager:
                 "qdrant",
                 "minio",
                 "r2",
-            }.issubset(
-                manager_module._RESOURCE_FACTORIES.keys()
-            )
+            }.issubset(manager_module._RESOURCE_FACTORIES.keys())
         finally:
             reset_resource_factories()
             manager_module._RESOURCE_FACTORIES.update(original_factories)
@@ -173,6 +171,46 @@ class TestResourceManager:
             assert mgr.has("good_a")
             assert mgr.has("good_b")
             assert not mgr.has("bad")
+        finally:
+            reset_resource_factories()
+            manager_module._RESOURCE_FACTORIES.update(original_factories)
+            manager_module._BUILTIN_FACTORIES_REGISTERED = original_registered
+
+    async def test_bootstrap_resources_raises_exception_group_for_multiple_failures(self) -> None:
+        original_factories = dict(manager_module._RESOURCE_FACTORIES)
+        original_registered = manager_module._BUILTIN_FACTORIES_REGISTERED
+        try:
+            reset_resource_factories()
+            manager_module._BUILTIN_FACTORIES_REGISTERED = True
+
+            async def _ok_factory(settings: object) -> str:
+                return "ok"
+
+            async def _bad_factory_a(settings: object) -> str:
+                raise RuntimeError("factory A exploded")
+
+            async def _bad_factory_b(settings: object) -> str:
+                raise ValueError("factory B exploded")
+
+            settings = MagicMock()
+            manager_module.register_factory("good", "good", _ok_factory)
+            manager_module.register_factory("bad_a", "bad_a", _bad_factory_a)
+            manager_module.register_factory("bad_b", "bad_b", _bad_factory_b)
+            for attr in ("good", "bad_a", "bad_b"):
+                setattr(settings, attr, MagicMock())
+
+            mgr = ResourceManager()
+            with pytest.raises(ExceptionGroup) as exc_info:
+                await manager_module.bootstrap_resources(settings, mgr)
+
+            assert len(exc_info.value.exceptions) == 2
+            assert any(isinstance(exc, RuntimeError) for exc in exc_info.value.exceptions)
+            assert any(isinstance(exc, ValueError) for exc in exc_info.value.exceptions)
+
+            # Successful resources should still be registered for cleanup
+            assert mgr.has("good")
+            assert not mgr.has("bad_a")
+            assert not mgr.has("bad_b")
         finally:
             reset_resource_factories()
             manager_module._RESOURCE_FACTORIES.update(original_factories)

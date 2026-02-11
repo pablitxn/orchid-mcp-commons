@@ -224,9 +224,7 @@ class TestMinioFactory:
 
 def test_local_dev_settings_defaults() -> None:
     with pytest.warns(UserWarning, match="local development only"):
-        settings = minio_local_dev_settings(
-            access_key="minioadmin", secret_key="minioadmin"
-        )
+        settings = minio_local_dev_settings(access_key="minioadmin", secret_key="minioadmin")
 
     assert settings.endpoint == "localhost:9000"
     assert settings.access_key.get_secret_value() == "minioadmin"

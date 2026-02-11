@@ -35,6 +35,7 @@ _SPAN_ID_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     default=None,
 )
 
+
 def _build_standard_record_keys() -> frozenset[str]:
     """Return all reserved LogRecord attributes across supported Python versions."""
     record_keys = set(logging.makeLogRecord({}).__dict__.keys())

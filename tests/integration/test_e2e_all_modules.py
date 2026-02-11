@@ -252,7 +252,9 @@ class TestMongoDBE2E:
 class TestQdrantVectorStoreE2E:
     """Test Qdrant vector store."""
 
-    @pytest.mark.skip(reason="Qdrant client API incompatibility - search method changed in newer versions")
+    @pytest.mark.skip(
+        reason="Qdrant client API incompatibility - search method changed in newer versions"
+    )
     async def test_upsert_and_search(self, qdrant_settings) -> None:
         """Test vector upsert and similarity search."""
         from orchid_commons.db import create_qdrant_vector_store

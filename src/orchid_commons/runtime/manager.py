@@ -376,9 +376,7 @@ def _ensure_builtin_factories() -> None:
         _RESOURCE_FACTORIES.setdefault("qdrant", ("qdrant", create_qdrant_vector_store))
         _RESOURCE_FACTORIES.setdefault("minio", ("minio", create_minio_profile))
         _RESOURCE_FACTORIES.setdefault("r2", ("r2", create_r2_profile))
-        _RESOURCE_FACTORIES.setdefault(
-            "multi_bucket", ("multi_bucket", create_multi_bucket_router)
-        )
+        _RESOURCE_FACTORIES.setdefault("multi_bucket", ("multi_bucket", create_multi_bucket_router))
         _BUILTIN_FACTORIES_REGISTERED = True
 
 
@@ -412,12 +410,17 @@ async def bootstrap_resources(
         return_exceptions=True,
     )
 
-    errors: list[BaseException] = []
+    errors: list[Exception] = []
     for (name, _), result in zip(to_init, results, strict=True):
-        if isinstance(result, BaseException):
+        if isinstance(result, Exception):
             errors.append(result)
         else:
             manager.register(name, result)
 
     if errors:
-        raise errors[0]
+        if len(errors) == 1:
+            raise errors[0]
+        raise ExceptionGroup(
+            "Multiple resource factories failed during bootstrap",
+            errors,
+        )

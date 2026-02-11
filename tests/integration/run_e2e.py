@@ -144,7 +144,9 @@ def run_tests(verbose: bool = False, markers: list[str] | None = None) -> int:
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Run E2E integration tests")
-    parser.add_argument("--check-only", action="store_true", help="Only check services, don't run tests")
+    parser.add_argument(
+        "--check-only", action="store_true", help="Only check services, don't run tests"
+    )
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
     parser.add_argument("-k", "--keyword", action="append", help="Filter tests by keyword")
     args = parser.parse_args()

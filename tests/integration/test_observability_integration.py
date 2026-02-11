@@ -44,7 +44,9 @@ async def test_observability_smoke_for_request_and_resource_metrics(sqlite_setti
 
     sqlite = await create_sqlite_resource(sqlite_settings)
     try:
-        with request_span("integration.request", method="GET", route="/integration", status_code=200):
+        with request_span(
+            "integration.request", method="GET", route="/integration", status_code=200
+        ):
             await sqlite.execute(
                 "CREATE TABLE IF NOT EXISTS telemetry(id INTEGER PRIMARY KEY, ok INTEGER NOT NULL)",
                 commit=True,

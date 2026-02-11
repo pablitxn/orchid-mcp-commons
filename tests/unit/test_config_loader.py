@@ -83,7 +83,10 @@ class TestLoadConfig:
         assert settings.logging.level == "WARNING"
         assert settings.observability.otlp_endpoint == "http://collector:4317"
         assert settings.resources.postgres is not None
-        assert settings.resources.postgres.dsn.get_secret_value() == "postgresql://user:pass@localhost/db"
+        assert (
+            settings.resources.postgres.dsn.get_secret_value()
+            == "postgresql://user:pass@localhost/db"
+        )
         assert settings.resources.postgres.max_pool_size == 20
 
     def test_missing_base_config_raises(self, tmp_path: Path) -> None:
@@ -194,9 +197,7 @@ class TestConfigValidation:
 
     def test_invalid_port(self, tmp_path: Path) -> None:
         config_file = tmp_path / "appsettings.json"
-        config_file.write_text(
-            '{"service": {"name": "test", "version": "1.0", "port": 999999}}'
-        )
+        config_file.write_text('{"service": {"name": "test", "version": "1.0", "port": 999999}}')
 
         with pytest.raises(ConfigValidationError) as exc_info:
             load_config(config_dir=tmp_path)
@@ -207,8 +208,7 @@ class TestConfigValidation:
     def test_invalid_log_level(self, tmp_path: Path) -> None:
         config_file = tmp_path / "appsettings.json"
         config_file.write_text(
-            '{"service": {"name": "test", "version": "1.0"}, '
-            '"logging": {"level": "INVALID"}}'
+            '{"service": {"name": "test", "version": "1.0"}, "logging": {"level": "INVALID"}}'
         )
 
         with pytest.raises(ConfigValidationError) as exc_info:
@@ -228,9 +228,7 @@ class TestPlaceholderResolution:
         monkeypatch.setenv("MY_SECRET", "secret123")
 
         config_file = tmp_path / "appsettings.json"
-        config_file.write_text(
-            '{"service": {"name": "${MY_SECRET}", "version": "1.0"}}'
-        )
+        config_file.write_text('{"service": {"name": "${MY_SECRET}", "version": "1.0"}}')
 
         settings = load_config(config_dir=tmp_path)
         assert settings.service.name == "secret123"
@@ -242,9 +240,7 @@ class TestPlaceholderResolution:
         monkeypatch.setenv("PORT", "5432")
 
         config_file = tmp_path / "appsettings.json"
-        config_file.write_text(
-            '{"service": {"name": "db-${HOST}-${PORT}", "version": "1.0"}}'
-        )
+        config_file.write_text('{"service": {"name": "db-${HOST}-${PORT}", "version": "1.0"}}')
 
         settings = load_config(config_dir=tmp_path)
         assert settings.service.name == "db-localhost-5432"

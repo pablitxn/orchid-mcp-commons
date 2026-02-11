@@ -128,7 +128,9 @@ class MongoDbResource(ObservableMixin):
             result = await self.collection(collection).insert_one(document)
         except Exception as exc:
             self._observe_error("insert_one", started, exc)
-            raise _translate_mongo_error(operation="insert_one", collection=collection, exc=exc) from exc
+            raise _translate_mongo_error(
+                operation="insert_one", collection=collection, exc=exc
+            ) from exc
 
         self._observe_operation("insert_one", started, success=True)
         return result.inserted_id
@@ -146,7 +148,9 @@ class MongoDbResource(ObservableMixin):
             document = await self.collection(collection).find_one(query, projection=projection)
         except Exception as exc:
             self._observe_error("find_one", started, exc)
-            raise _translate_mongo_error(operation="find_one", collection=collection, exc=exc) from exc
+            raise _translate_mongo_error(
+                operation="find_one", collection=collection, exc=exc
+            ) from exc
 
         self._observe_operation("find_one", started, success=True)
         if document is None:
@@ -182,7 +186,9 @@ class MongoDbResource(ObservableMixin):
             documents = await cursor.to_list(length=limit if limit is not None else 1_000)
         except Exception as exc:
             self._observe_error("find_many", started, exc)
-            raise _translate_mongo_error(operation="find_many", collection=collection, exc=exc) from exc
+            raise _translate_mongo_error(
+                operation="find_many", collection=collection, exc=exc
+            ) from exc
 
         self._observe_operation("find_many", started, success=True)
         return [dict(document) for document in documents]
@@ -201,7 +207,9 @@ class MongoDbResource(ObservableMixin):
             result = await self.collection(collection).update_one(query, update, upsert=upsert)
         except Exception as exc:
             self._observe_error("update_one", started, exc)
-            raise _translate_mongo_error(operation="update_one", collection=collection, exc=exc) from exc
+            raise _translate_mongo_error(
+                operation="update_one", collection=collection, exc=exc
+            ) from exc
 
         self._observe_operation("update_one", started, success=True)
         return int(result.modified_count)
@@ -213,7 +221,9 @@ class MongoDbResource(ObservableMixin):
             result = await self.collection(collection).delete_one(query)
         except Exception as exc:
             self._observe_error("delete_one", started, exc)
-            raise _translate_mongo_error(operation="delete_one", collection=collection, exc=exc) from exc
+            raise _translate_mongo_error(
+                operation="delete_one", collection=collection, exc=exc
+            ) from exc
 
         self._observe_operation("delete_one", started, success=True)
         return int(result.deleted_count)

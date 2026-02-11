@@ -24,9 +24,7 @@ class TestExceptionHierarchy:
         assert isinstance(ConfigValidationError([]), OrchidCommonsError)
 
     def test_placeholder_resolution_error_is_orchid_commons_error(self) -> None:
-        assert isinstance(
-            PlaceholderResolutionError("${VAR}", "key.path"), OrchidCommonsError
-        )
+        assert isinstance(PlaceholderResolutionError("${VAR}", "key.path"), OrchidCommonsError)
 
     def test_config_error_is_still_exception(self) -> None:
         assert isinstance(ConfigError(), Exception)

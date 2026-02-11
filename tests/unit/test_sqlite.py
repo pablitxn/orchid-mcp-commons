@@ -11,9 +11,7 @@ from orchid_commons.db import SqliteResource, create_sqlite_resource
 
 
 class TestSqliteResource:
-    async def test_connect_creates_directory_and_enables_foreign_keys(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_connect_creates_directory_and_enables_foreign_keys(self, tmp_path: Path) -> None:
         db_path = tmp_path / "nested" / "test.db"
         resource = SqliteResource(SqliteSettings(db_path=db_path))
 
@@ -149,9 +147,7 @@ class TestSqliteResource:
 class TestSqliteResourceManagerIntegration:
     async def test_startup_bootstraps_sqlite(self, tmp_path: Path) -> None:
         manager = ResourceManager()
-        settings = ResourceSettings(
-            sqlite=SqliteSettings(db_path=tmp_path / "resource_manager.db")
-        )
+        settings = ResourceSettings(sqlite=SqliteSettings(db_path=tmp_path / "resource_manager.db"))
 
         await manager.startup(settings, required=["sqlite"])
         sqlite_resource = manager.get("sqlite")

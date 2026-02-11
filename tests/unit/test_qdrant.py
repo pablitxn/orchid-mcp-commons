@@ -277,7 +277,9 @@ class TestQdrantVectorStore:
         async def query_points(**kwargs: Any) -> FakeQueryResponse:
             client.search_calls.append(kwargs)
             return FakeQueryResponse(
-                points=[FakeScoredPoint(id=42, score=0.77, payload={"source": "qp"}, vector=[1.0, 2.0])]
+                points=[
+                    FakeScoredPoint(id=42, score=0.77, payload={"source": "qp"}, vector=[1.0, 2.0])
+                ]
             )
 
         client.query_points = query_points  # type: ignore[attr-defined]
@@ -312,7 +314,9 @@ class TestQdrantVectorStore:
             client.search_calls.append(kwargs)
             return FakeLegacySearchResponse(
                 result=[
-                    FakeScoredPoint(id=7, score=0.91, payload={"source": "legacy"}, vector=[0.7, 0.8])
+                    FakeScoredPoint(
+                        id=7, score=0.91, payload={"source": "legacy"}, vector=[0.7, 0.8]
+                    )
                 ]
             )
 

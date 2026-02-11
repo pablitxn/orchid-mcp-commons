@@ -55,8 +55,12 @@ class LangfuseSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     enabled: bool = Field(default=True, description="Enable Langfuse tracing")
-    public_key: SecretStr | None = Field(default=None, min_length=1, description="Langfuse public key")
-    secret_key: SecretStr | None = Field(default=None, min_length=1, description="Langfuse secret key")
+    public_key: SecretStr | None = Field(
+        default=None, min_length=1, description="Langfuse public key"
+    )
+    secret_key: SecretStr | None = Field(
+        default=None, min_length=1, description="Langfuse secret key"
+    )
     base_url: str = Field(
         default="https://cloud.langfuse.com",
         min_length=1,
@@ -452,9 +456,7 @@ class PgVectorSettings(BaseModel):
 
     table: str = Field(default="embeddings", min_length=1, description="Table name")
     dimensions: int = Field(default=1536, ge=1, description="Vector dimensions")
-    distance_metric: str = Field(
-        default="cosine", min_length=1, description="Distance metric"
-    )
+    distance_metric: str = Field(default="cosine", min_length=1, description="Distance metric")
     ivfflat_lists: int = Field(default=100, ge=1, description="IVFFlat index lists")
 
 
@@ -536,9 +538,7 @@ class ResourceSettings(BaseModel):
             mongodb = MongoDbSettings(
                 uri=SecretStr(mongodb_uri),
                 database=mongodb_database,
-                server_selection_timeout_ms=int(
-                    env("MONGODB_SERVER_SELECTION_TIMEOUT_MS") or 2000
-                ),
+                server_selection_timeout_ms=int(env("MONGODB_SERVER_SELECTION_TIMEOUT_MS") or 2000),
                 connect_timeout_ms=int(env("MONGODB_CONNECT_TIMEOUT_MS") or 2000),
                 ping_timeout_seconds=float(env("MONGODB_PING_TIMEOUT_SECONDS") or 2.0),
                 app_name=env("MONGODB_APP_NAME"),
@@ -624,9 +624,7 @@ class ResourceSettings(BaseModel):
                 access_key=SecretStr(mb_access_key),
                 secret_key=SecretStr(mb_secret_key),
                 buckets=buckets,
-                create_buckets_if_missing=env_bool(
-                    "MULTI_BUCKET_CREATE_BUCKETS_IF_MISSING", False
-                ),
+                create_buckets_if_missing=env_bool("MULTI_BUCKET_CREATE_BUCKETS_IF_MISSING", False),
                 secure=env_bool("MULTI_BUCKET_SECURE", True),
                 region=env("MULTI_BUCKET_REGION"),
             )

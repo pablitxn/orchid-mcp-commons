@@ -229,9 +229,7 @@ class TestMultiBucketBlobRouter:
         client = make_client()
         # First bucket exists, second doesn't
         client.bucket_exists.side_effect = [True, False, False]
-        settings = make_settings(
-            buckets={"videos": "prod-videos", "chunks": "prod-chunks"}
-        )
+        settings = make_settings(buckets={"videos": "prod-videos", "chunks": "prod-chunks"})
         router = MultiBucketBlobRouter(client=client, settings=settings)
 
         results = await router.ensure_buckets(create_if_missing=True)
@@ -368,9 +366,7 @@ class TestMultiBucketSettings:
         assert settings.create_buckets_if_missing is True
         assert settings.buckets == {"videos": "dev-videos", "chunks": "dev-chunks"}
 
-    def test_local_dev_raises_in_production(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_local_dev_raises_in_production(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ORCHID_ENV", "production")
         with pytest.raises(RuntimeError, match="must not be used in production"):
             MultiBucketSettings.local_dev(access_key="ak", secret_key="sk")

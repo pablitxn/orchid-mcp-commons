@@ -45,26 +45,41 @@ def test_prometheus_metrics_registration_and_samples() -> None:
         max_connections=10,
     )
 
-    assert registry.get_sample_value(
-        "orchid_resource_throughput_total",
-        {"resource": "postgres", "operation": "fetchval", "status": "success"},
-    ) == 1.0
-    assert registry.get_sample_value(
-        "orchid_resource_throughput_total",
-        {"resource": "postgres", "operation": "fetchval", "status": "error"},
-    ) == 1.0
-    assert registry.get_sample_value(
-        "orchid_resource_errors_total",
-        {"resource": "postgres", "operation": "fetchval", "error_type": "runtimeerror"},
-    ) == 1.0
-    assert registry.get_sample_value(
-        "orchid_resource_latency_seconds_count",
-        {"resource": "postgres", "operation": "fetchval", "status": "success"},
-    ) == 1.0
-    assert registry.get_sample_value(
-        "orchid_postgres_pool_usage_connections",
-        {"state": "used"},
-    ) == 3.0
+    assert (
+        registry.get_sample_value(
+            "orchid_resource_throughput_total",
+            {"resource": "postgres", "operation": "fetchval", "status": "success"},
+        )
+        == 1.0
+    )
+    assert (
+        registry.get_sample_value(
+            "orchid_resource_throughput_total",
+            {"resource": "postgres", "operation": "fetchval", "status": "error"},
+        )
+        == 1.0
+    )
+    assert (
+        registry.get_sample_value(
+            "orchid_resource_errors_total",
+            {"resource": "postgres", "operation": "fetchval", "error_type": "runtimeerror"},
+        )
+        == 1.0
+    )
+    assert (
+        registry.get_sample_value(
+            "orchid_resource_latency_seconds_count",
+            {"resource": "postgres", "operation": "fetchval", "status": "success"},
+        )
+        == 1.0
+    )
+    assert (
+        registry.get_sample_value(
+            "orchid_postgres_pool_usage_connections",
+            {"state": "used"},
+        )
+        == 3.0
+    )
 
 
 def test_configure_prometheus_metrics_sets_default() -> None:

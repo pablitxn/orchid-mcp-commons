@@ -90,7 +90,9 @@ def create_fastapi_observability_middleware(
             and correlation.request_id is not None
             and hasattr(response, "headers")
         ):
-            _set_header_if_missing(response.headers, request_id_response_header, correlation.request_id)
+            _set_header_if_missing(
+                response.headers, request_id_response_header, correlation.request_id
+            )
         return response
 
     return middleware
@@ -156,7 +158,9 @@ def create_aiohttp_observability_middleware(
             and correlation.request_id is not None
             and hasattr(response, "headers")
         ):
-            _set_header_if_missing(response.headers, request_id_response_header, correlation.request_id)
+            _set_header_if_missing(
+                response.headers, request_id_response_header, correlation.request_id
+            )
         return response
 
     if decorate:

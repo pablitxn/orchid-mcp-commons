@@ -29,7 +29,9 @@ class TestResourceSettings:
         resources = app_settings.resources
 
         assert resources.postgres is not None
-        assert resources.postgres.dsn.get_secret_value() == "postgresql://user:pass@localhost:5432/app"
+        assert (
+            resources.postgres.dsn.get_secret_value() == "postgresql://user:pass@localhost:5432/app"
+        )
         assert resources.postgres.min_pool_size == 1
         assert resources.postgres.max_pool_size == 20
         assert resources.postgres.command_timeout_seconds == 60.0
@@ -263,9 +265,7 @@ class TestResourceSettingsFromEnv:
 class TestMinioSettings:
     def test_local_dev_defaults(self) -> None:
         with pytest.warns(UserWarning, match="local development only"):
-            settings = MinioSettings.local_dev(
-                access_key="minioadmin", secret_key="minioadmin"
-            )
+            settings = MinioSettings.local_dev(access_key="minioadmin", secret_key="minioadmin")
 
         assert settings.endpoint == "localhost:9000"
         assert settings.access_key.get_secret_value() == "minioadmin"
@@ -274,9 +274,7 @@ class TestMinioSettings:
         assert settings.create_bucket_if_missing is True
         assert settings.secure is False
 
-    def test_local_dev_raises_in_production(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_local_dev_raises_in_production(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("ORCHID_ENV", "production")
         with pytest.raises(RuntimeError, match="must not be used in production"):
             MinioSettings.local_dev(access_key="ak", secret_key="sk")

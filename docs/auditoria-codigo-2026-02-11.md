@@ -83,7 +83,7 @@
 
 - [ ] Corregir deuda `ruff`/`format` completa.
 - [ ] Resolver errores `mypy` prioritarios.
-- [ ] Mejorar reporte de errores concurrentes en bootstrap.
+- [x] Mejorar reporte de errores concurrentes en bootstrap.
 
 ### Iteracion 3
 

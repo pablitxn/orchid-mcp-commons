@@ -166,4 +166,3 @@ def test_constructor_validates_bucket() -> None:
     client: Any = make_client()
     with pytest.raises(ValueError):
         S3BlobStorage(client=client, bucket=" ")
-

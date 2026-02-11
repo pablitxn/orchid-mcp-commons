@@ -39,8 +39,7 @@ def resolve_placeholders(
             result[key] = resolve_placeholders(value, strict=strict, _path=current_path)
         elif isinstance(value, list):
             result[key] = [
-                _resolve_value(item, f"{current_path}[{i}]", strict)
-                for i, item in enumerate(value)
+                _resolve_value(item, f"{current_path}[{i}]", strict) for i, item in enumerate(value)
             ]
         else:
             result[key] = _resolve_value(value, current_path, strict)

@@ -359,4 +359,3 @@ def create_prometheus_asgi_app(*, registry: Any | None = None) -> Any:
         )
 
     return app
-

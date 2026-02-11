@@ -24,6 +24,7 @@ from orchid_commons.runtime.errors import OrchidCommonsError
 # Fakes (reuse pattern from test_observability_http)
 # ---------------------------------------------------------------------------
 
+
 class FakeFastApiRequest:
     def __init__(
         self,
@@ -48,6 +49,7 @@ class FakeFastApiResponse:
 # ---------------------------------------------------------------------------
 # APIError hierarchy
 # ---------------------------------------------------------------------------
+
 
 class TestAPIError:
     def test_inherits_from_orchid_commons_error(self) -> None:
@@ -77,6 +79,7 @@ class TestAPIError:
 # ErrorResponse dataclass
 # ---------------------------------------------------------------------------
 
+
 class TestErrorResponse:
     def test_frozen(self) -> None:
         resp = ErrorResponse(code="X", message="x")
@@ -93,6 +96,7 @@ class TestErrorResponse:
 # ---------------------------------------------------------------------------
 # _resolve_request_id
 # ---------------------------------------------------------------------------
+
 
 class TestResolveRequestId:
     def test_from_request_state(self) -> None:
@@ -119,6 +123,7 @@ class TestResolveRequestId:
 # _build_error_body
 # ---------------------------------------------------------------------------
 
+
 class TestBuildErrorBody:
     def test_structure(self) -> None:
         body = _build_error_body("req-1", "NOT_FOUND", "gone", {"id": "42"})
@@ -135,6 +140,7 @@ class TestBuildErrorBody:
 # ---------------------------------------------------------------------------
 # _dispatch_exception
 # ---------------------------------------------------------------------------
+
 
 class MyAppError(Exception):
     pass
@@ -211,6 +217,7 @@ class TestDispatchException:
 # _log_error
 # ---------------------------------------------------------------------------
 
+
 class TestLogError:
     def test_warning_for_4xx(self, caplog: pytest.LogCaptureFixture) -> None:
         resp = ErrorResponse(code="BAD", message="bad", status_code=400, log_level=logging.WARNING)
@@ -242,6 +249,7 @@ class TestLogError:
 # FastAPI middleware integration
 # ---------------------------------------------------------------------------
 
+
 class TestFastApiErrorMiddleware:
     async def test_passthrough_success(self) -> None:
         middleware = create_fastapi_error_middleware()
@@ -260,7 +268,9 @@ class TestFastApiErrorMiddleware:
         req.state.request_id = "req-api"
 
         async def call_next(_: Any) -> FakeFastApiResponse:
-            raise APIError(code="BAD_INPUT", message="invalid", status_code=422, details={"field": "x"})
+            raise APIError(
+                code="BAD_INPUT", message="invalid", status_code=422, details={"field": "x"}
+            )
 
         resp = await middleware(req, call_next)
         assert resp.status_code == 422

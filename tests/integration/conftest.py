@@ -232,6 +232,7 @@ def qdrant_settings() -> Iterator[QdrantSettings]:
 
 # -- Redis fixtures --
 
+
 @pytest.fixture(scope="session")
 def redis_settings() -> Iterator[RedisSettings]:
     external_url = os.getenv("ORCHID_REDIS_URL")
@@ -259,6 +260,7 @@ def redis_settings() -> Iterator[RedisSettings]:
 
 
 # -- MongoDB fixtures --
+
 
 @pytest.fixture(scope="session")
 def mongodb_settings() -> Iterator[MongoDbSettings]:
@@ -292,6 +294,7 @@ def mongodb_settings() -> Iterator[MongoDbSettings]:
 
 # -- RabbitMQ fixtures --
 
+
 @pytest.fixture(scope="session")
 def rabbitmq_settings() -> Iterator[RabbitMqSettings]:
     external_url = os.getenv("ORCHID_RABBITMQ_URL")
@@ -314,6 +317,7 @@ def rabbitmq_settings() -> Iterator[RabbitMqSettings]:
         port = container.get_exposed_port(5672)
         # Wait for AMQP to be ready
         import socket
+
         deadline = time.monotonic() + 30.0
         while time.monotonic() < deadline:
             try:
