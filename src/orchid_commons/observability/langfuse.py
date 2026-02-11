@@ -431,15 +431,15 @@ class LangfuseClient:
 
         return decorator
 
+    @staticmethod
     def _safe_client_call(
-        self,
         operation: str,
         callback: Callable[..., Any],
         **kwargs: Any,
     ) -> None:
         try:
             callback(**kwargs)
-        except Exception:
+        except _LANGFUSE_RECOVERABLE_ERRORS:
             logger.debug("Langfuse client operation '%s' failed", operation, exc_info=True)
 
 

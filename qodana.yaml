@@ -8,3 +8,7 @@ profile:
   name: qodana.recommended
 include:
   - name: CheckDependencyLicenses
+failureConditions:
+  severityThresholds:
+    critical: 0
+    high: 0

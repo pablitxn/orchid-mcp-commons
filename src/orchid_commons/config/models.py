@@ -6,7 +6,7 @@ import json
 import os
 import warnings
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
@@ -189,7 +189,7 @@ class MinioSettings(BaseModel):
         secure: bool = False,
         region: str | None = None,
         create_bucket_if_missing: bool = True,
-    ) -> MinioSettings:
+    ) -> Self:
         """Build defaults that work with local docker-compose MinIO."""
         if os.getenv("ORCHID_ENV", "development") == "production":
             raise RuntimeError("local_dev() must not be used in production environments")
@@ -324,7 +324,7 @@ class QdrantSettings(BaseModel):
     collection_prefix: str = Field(default="", description="Collection name prefix")
 
     @model_validator(mode="after")
-    def validate_url_or_host(self) -> QdrantSettings:
+    def validate_url_or_host(self) -> Self:
         if self.url is None and self.host is None:
             raise ValueError("Either url or host must be provided for Qdrant")
         return self
@@ -349,7 +349,7 @@ class R2Settings(BaseModel):
     region: str = Field(default="auto", min_length=1, description="R2 region (usually auto)")
 
     @model_validator(mode="after")
-    def validate_endpoint_or_account(self) -> R2Settings:
+    def validate_endpoint_or_account(self) -> Self:
         if self.endpoint is None and self.account_id is None:
             raise ValueError("Either endpoint or account_id must be provided for R2")
         return self
@@ -447,7 +447,7 @@ class MultiBucketSettings(BaseModel):
         secure: bool = False,
         region: str | None = None,
         create_buckets_if_missing: bool = True,
-    ) -> MultiBucketSettings:
+    ) -> Self:
         """Build defaults that work with local docker-compose MinIO."""
         if os.getenv("ORCHID_ENV", "development") == "production":
             raise RuntimeError("local_dev() must not be used in production environments")
@@ -492,7 +492,7 @@ class ResourceSettings(BaseModel):
     multi_bucket: MultiBucketSettings | None = Field(default=None)
 
     @classmethod
-    def from_env(cls, prefix: str = "ORCHID_") -> ResourceSettings:
+    def from_env(cls, prefix: str = "ORCHID_") -> Self:
         """Build settings from environment variables.
 
         Each resource is constructed only when its required env vars are set.
@@ -511,14 +511,18 @@ class ResourceSettings(BaseModel):
         def _parse_int(name: str, value: str) -> int:
             try:
                 return int(value)
-            except ValueError as exc:
-                raise ValueError(f"Invalid {prefix}{name}={value!r}: expected integer") from exc
+            except ValueError as int_error:
+                raise ValueError(
+                    f"Invalid {prefix}{name}={value!r}: expected integer"
+                ) from int_error
 
         def _parse_float(name: str, value: str) -> float:
             try:
                 return float(value)
-            except ValueError as exc:
-                raise ValueError(f"Invalid {prefix}{name}={value!r}: expected float") from exc
+            except ValueError as float_error:
+                raise ValueError(
+                    f"Invalid {prefix}{name}={value!r}: expected float"
+                ) from float_error
 
         def env_int(name: str, default: int) -> int:
             value = env(name)
@@ -671,8 +675,10 @@ class ResourceSettings(BaseModel):
         if mb_endpoint and mb_access_key and mb_secret_key and mb_buckets_json:
             try:
                 buckets = json.loads(mb_buckets_json)
-            except (json.JSONDecodeError, ValueError) as exc:
-                raise ValueError(f"MULTI_BUCKET_BUCKETS must be valid JSON: {exc}") from exc
+            except (json.JSONDecodeError, ValueError) as json_error:
+                raise ValueError(
+                    f"MULTI_BUCKET_BUCKETS must be valid JSON: {json_error}"
+                ) from json_error
             if not isinstance(buckets, dict) or not all(
                 isinstance(k, str) and isinstance(v, str) for k, v in buckets.items()
             ):

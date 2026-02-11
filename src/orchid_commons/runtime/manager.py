@@ -115,7 +115,8 @@ class ResourceManager:
                       Raises MissingRequiredResourceError if any are missing.
         """
         started = perf_counter()
-        try:
+
+        async def _startup_resources() -> None:
             await bootstrap_resources(settings, self)
 
             if required:
@@ -124,11 +125,13 @@ class ResourceManager:
                     raise MissingRequiredResourceError(
                         f"Required resources not configured: {', '.join(missing)}"
                     )
-        except Exception as exc:
+
+        startup_result = (await asyncio.gather(_startup_resources(), return_exceptions=True))[0]
+        if isinstance(startup_result, Exception):
             # Best-effort cleanup of already-initialized resources
             try:
                 await self.close_all()
-            except Exception:
+            except ShutdownError:
                 pass
             self._metrics_recorder().observe_operation(
                 resource="runtime",
@@ -139,9 +142,11 @@ class ResourceManager:
             self._metrics_recorder().observe_error(
                 resource="runtime",
                 operation="startup",
-                error_type=type(exc).__name__,
+                error_type=type(startup_result).__name__,
             )
-            raise
+            raise startup_result
+        if isinstance(startup_result, BaseException):
+            raise startup_result
 
         self._metrics_recorder().observe_operation(
             resource="runtime",
@@ -157,27 +162,33 @@ class ResourceManager:
         If any resources fail to close, raises ShutdownError with all errors.
         """
         started = perf_counter()
+
+        async def _close_resource(resource: Any) -> None:
+            close = getattr(resource, "close", None)
+            if close is None:
+                return
+            maybe_awaitable = close()
+            if hasattr(maybe_awaitable, "__await__"):
+                await maybe_awaitable
+
         errors: dict[str, Exception] = {}
-        try:
-            for name, resource in self._resources.items():
-                try:
-                    close = getattr(resource, "close", None)
-                    if close is None:
-                        continue
-                    maybe_awaitable = close()
-                    if hasattr(maybe_awaitable, "__await__"):
-                        await maybe_awaitable
-                except Exception as exc:
-                    errors[name] = exc
+        resource_entries = list(self._resources.items())
+        close_results = await asyncio.gather(
+            *(_close_resource(resource) for _, resource in resource_entries),
+            return_exceptions=True,
+        )
+        for (name, _), close_result in zip(resource_entries, close_results, strict=True):
+            if isinstance(close_result, Exception):
+                errors[name] = close_result
+            elif isinstance(close_result, BaseException):
+                raise close_result
 
-            # Only remove successfully closed resources
-            for name in list(self._resources):
-                if name not in errors:
-                    del self._resources[name]
+        # Only remove successfully closed resources
+        for name in list(self._resources):
+            if name not in errors:
+                del self._resources[name]
 
-            if errors:
-                raise ShutdownError(errors)
-        except Exception as exc:
+        if errors:
             self._metrics_recorder().observe_operation(
                 resource="runtime",
                 operation="shutdown",
@@ -187,9 +198,9 @@ class ResourceManager:
             self._metrics_recorder().observe_error(
                 resource="runtime",
                 operation="shutdown",
-                error_type=type(exc).__name__,
+                error_type=ShutdownError.__name__,
             )
-            raise
+            raise ShutdownError(errors)
 
         self._metrics_recorder().observe_operation(
             resource="runtime",
@@ -215,6 +226,14 @@ ResourceFactory = Callable[..., Coroutine[Any, Any, Any]]
 _RESOURCE_FACTORIES: dict[str, tuple[str, ResourceFactory]] = {}
 _BUILTIN_FACTORIES_REGISTERED = False
 _FACTORY_LOCK = threading.Lock()
+_HEALTH_CHECK_RECOVERABLE_ERRORS = (
+    AttributeError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 def _optional_health_checks(
@@ -300,12 +319,12 @@ def _check_langfuse_health(client: Any) -> HealthStatus:
         flush = getattr(client, "flush", None)
         if callable(flush):
             flush()
-    except Exception as exc:
+    except _HEALTH_CHECK_RECOVERABLE_ERRORS as health_error:
         return HealthStatus(
             healthy=False,
             latency_ms=(perf_counter() - started) * 1000,
-            message=f"Langfuse health check failed: {exc}",
-            details={"error_type": type(exc).__name__},
+            message=f"Langfuse health check failed: {health_error}",
+            details={"error_type": type(health_error).__name__},
         )
 
     healthy = bool(getattr(client, "enabled", False))

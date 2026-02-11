@@ -15,14 +15,27 @@ jobs:
       pull-requests: write
       checks: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}  # to check out the actual pull request commit, not the merge commit
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0  # a full history is required for pull request analysis
-      - name: 'Qodana Scan'
+
+      - name: Detect Qodana baseline
+        id: baseline
+        run: |
+          if [ -f qodana.sarif.json ]; then
+            echo "args=--baseline,qodana.sarif.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Qodana Scan
         uses: JetBrains/qodana-action@v2025.3
         with:
-          pr-mode: false
+          pr-mode: true
+          args: ${{ steps.baseline.outputs.args }}
+          upload-result: ${{ github.event_name != 'pull_request' }}
+          artifact-name: qodana-report
           bootstrap: |
             pip install uv
             uv sync --extra all --extra dev --frozen
