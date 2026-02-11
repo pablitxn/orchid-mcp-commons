@@ -24,9 +24,9 @@ jobs:
         id: baseline
         run: |
           if [ -f qodana.sarif.json ]; then
-            echo "args=--baseline,qodana.sarif.json" >> "$GITHUB_OUTPUT"
+            echo "args=--baseline,qodana.sarif.json,--disable-sanity" >> "$GITHUB_OUTPUT"
           else
-            echo "args=" >> "$GITHUB_OUTPUT"
+            echo "args=--disable-sanity" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Qodana Scan

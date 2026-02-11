@@ -257,7 +257,7 @@ class RedisCache(ObservableMixin):
             self._observe_error("close", started, exc)
             raise
         finally:
-            self._closed = True
+            self._mark_closed()
 
         self._observe_operation("close", started, success=True)
 

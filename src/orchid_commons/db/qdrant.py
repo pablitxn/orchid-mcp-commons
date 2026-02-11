@@ -703,7 +703,7 @@ class QdrantVectorStore(ObservableMixin):
             self._observe_error("close", started, translated)
             raise translated from exc
         finally:
-            self._closed = True
+            self._mark_closed()
 
         self._observe_operation("close", started, success=True)
 

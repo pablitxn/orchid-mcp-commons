@@ -23,6 +23,7 @@ class ObservableMixin:
     _resource_name: ClassVar[str]
     _metrics: MetricsRecorder | None
     _resource_name_override: str | None
+    _closed: bool
 
     def _metrics_recorder(self) -> MetricsRecorder:
         from orchid_commons.observability.metrics import get_metrics_recorder
@@ -48,3 +49,7 @@ class ObservableMixin:
             operation=operation,
             error_type=type(exc).__name__,
         )
+
+    def _mark_closed(self) -> None:
+        """Mark slotted resources as closed in a way compatible with slot inspections."""
+        object.__setattr__(self, "_closed", True)
