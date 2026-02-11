@@ -73,6 +73,16 @@ class TestBucketBootstrap:
         assert result.exists is True
         assert result.created is False
 
+    async def test_bootstrap_handles_race_for_unexpected_sdk_exception(self) -> None:
+        client = make_minio_client(bucket_exists=False)
+        client.bucket_exists.side_effect = [False, True]
+        client.make_bucket.side_effect = KeyError("bucket already exists")
+
+        result = await bootstrap_bucket(client, "assets", create_if_missing=True)
+
+        assert result.exists is True
+        assert result.created is False
+
 
 class TestMinioProfile:
     async def test_ensure_bucket_uses_settings_default(self) -> None:

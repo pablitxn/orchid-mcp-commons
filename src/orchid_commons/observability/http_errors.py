@@ -53,7 +53,50 @@ class _MinimalJSONResponse:
     def __init__(self, *, content: dict[str, Any], status_code: int) -> None:
         self.status_code = status_code
         self.status = status_code  # aiohttp compatibility
-        self.body = json.dumps(content).encode()
+        self.body = _encode_json_body(content)
+
+
+def _json_safe_value(value: Any, *, _seen: set[int] | None = None) -> Any:
+    seen = set() if _seen is None else _seen
+
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+
+    if isinstance(value, dict):
+        value_id = id(value)
+        if value_id in seen:
+            return "<circular-reference>"
+        seen.add(value_id)
+        return {
+            str(key): _json_safe_value(sub_value, _seen=seen) for key, sub_value in value.items()
+        }
+
+    if isinstance(value, (list, tuple, set, frozenset)):
+        value_id = id(value)
+        if value_id in seen:
+            return "<circular-reference>"
+        seen.add(value_id)
+        return [_json_safe_value(item, _seen=seen) for item in value]
+
+    try:
+        json.dumps(value)
+        return value
+    except (TypeError, ValueError):
+        return repr(value)
+
+
+def _encode_json_body(content: dict[str, Any]) -> bytes:
+    try:
+        return json.dumps(content).encode()
+    except (TypeError, ValueError):
+        fallback = _json_safe_value(content)
+        if isinstance(fallback, dict):
+            return json.dumps(fallback).encode()
+        return json.dumps(
+            {"error": {"code": "INTERNAL_ERROR", "message": "serialization failed"}}
+        ).encode()
 
 
 def _fastapi_json_response(*, content: dict[str, Any], status_code: int) -> Any:
@@ -112,11 +155,14 @@ def _build_error_body(
     details: dict[str, Any],
 ) -> dict[str, Any]:
     """Build the standard error response body."""
+    safe_details = _json_safe_value(details)
+    if not isinstance(safe_details, dict):
+        safe_details = {"value": safe_details}
     return {
         "error": {
             "code": code,
             "message": message,
-            "details": details,
+            "details": safe_details,
             "request_id": request_id,
         }
     }

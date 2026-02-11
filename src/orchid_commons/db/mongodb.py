@@ -33,7 +33,26 @@ def _import_motor_asyncio() -> Any:
 
 
 _AUTH_CODES = {"Unauthorized", "AuthenticationFailed"}
-_TRANSIENT_CODES = {"NetworkTimeout", "ExceededTimeLimit", "WriteConcernFailed"}
+_AUTH_NUMERIC_CODES = {13, 18}
+_TRANSIENT_CODES = {
+    "ExceededTimeLimit",
+    "HostNotFound",
+    "HostUnreachable",
+    "NetworkTimeout",
+    "NotPrimaryNoSecondaryOk",
+    "NotWritablePrimary",
+    "PrimarySteppedDown",
+    "ShutdownInProgress",
+    "WriteConcernFailed",
+}
+_TRANSIENT_EXCEPTION_NAMES = {
+    "AutoReconnect",
+    "ConnectionFailure",
+    "ExecutionTimeout",
+    "NetworkTimeout",
+    "ServerSelectionTimeoutError",
+    "WaitQueueTimeoutError",
+}
 
 
 def _translate_mongo_error(
@@ -47,11 +66,36 @@ def _translate_mongo_error(
         return exc
 
     code_name = getattr(exc, "details", {}).get("codeName", "") if hasattr(exc, "details") else ""
+    code = getattr(exc, "code", None)
     message = str(exc) or type(exc).__name__
+    lowered = message.lower()
+    exc_name = type(exc).__name__
+    exc_module = type(exc).__module__.lower()
+    mongo_driver_error = exc_module.startswith("motor") or exc_module.startswith("pymongo")
 
-    if code_name in _AUTH_CODES or "auth" in message.lower():
+    if code_name in _AUTH_CODES or code in _AUTH_NUMERIC_CODES or "auth" in lowered:
         return DocumentAuthError(operation, collection, message)
-    if code_name in _TRANSIENT_CODES or isinstance(exc, (TimeoutError, ConnectionError)):
+    if code_name in _TRANSIENT_CODES or isinstance(
+        exc, (asyncio.TimeoutError, TimeoutError, ConnectionError, OSError)
+    ):
+        return DocumentTransientError(operation, collection, message)
+    if mongo_driver_error and (
+        exc_name in _TRANSIENT_EXCEPTION_NAMES
+        or any(
+            token in lowered
+            for token in (
+                "auto reconnect",
+                "connection refused",
+                "connection reset",
+                "connection timed out",
+                "network timeout",
+                "server selection timeout",
+                "temporarily unavailable",
+                "timed out",
+                "timeout",
+            )
+        )
+    ):
         return DocumentTransientError(operation, collection, message)
     return DocumentOperationError(operation, collection, message)
 
@@ -269,13 +313,7 @@ class MongoDbResource(ObservableMixin):
                 message="ok",
                 details={"database": self.database_name},
             )
-        except (
-            DocumentStoreError,
-            RuntimeError,
-            TimeoutError,
-            ConnectionError,
-            OSError,
-        ) as exc:
+        except Exception as exc:
             latency_ms = (perf_counter() - start) * 1000
             return HealthStatus(
                 healthy=False,

@@ -463,3 +463,34 @@ def test_request_span_resolves_status_code_lazily(monkeypatch: pytest.MonkeyPatc
     assert request_total.calls[0][2]["http.status_code"] == 204
     span = trace_module.tracer.spans[-1]
     assert span.attributes["http.status_code"] == 204
+
+
+def test_request_span_marks_status_resolver_failures_as_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trace_module = FakeTraceModule()
+    request_total = FakeInstrument()
+    request_duration = FakeInstrument()
+
+    monkeypatch.setattr(otel, "_import_otel_api_trace_module", lambda: trace_module)
+    monkeypatch.setattr(
+        otel,
+        "_ensure_request_instruments",
+        lambda: otel._RequestInstruments(total=request_total, duration_seconds=request_duration),
+    )
+
+    def broken_status_code() -> int | None:
+        raise RuntimeError("status resolver exploded")
+
+    with otel.request_span(
+        "http.request",
+        method="GET",
+        route="/broken-status",
+        status_code=broken_status_code,
+    ):
+        pass
+
+    assert request_total.calls[0][2]["status"] == "error"
+    span = trace_module.tracer.spans[-1]
+    assert span.errors
+    assert str(span.errors[0]) == "status resolver exploded"

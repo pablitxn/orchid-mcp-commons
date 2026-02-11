@@ -69,6 +69,34 @@ class TestResourceManager:
         finally:
             monkeypatch.undo()
 
+    async def test_startup_rolls_back_on_exception_group_failure(self) -> None:
+        manager = ResourceManager()
+
+        res_a = MagicMock()
+        res_a.close = AsyncMock()
+        res_b = MagicMock()
+        res_b.close = AsyncMock()
+        manager.register("a", res_a)
+        manager.register("b", res_b)
+
+        async def _failing_bootstrap(settings: object, mgr: ResourceManager) -> None:
+            raise ExceptionGroup(
+                "bootstrap exploded",
+                [RuntimeError("factory-a"), ValueError("factory-b")],
+            )
+
+        monkeypatch = pytest.MonkeyPatch()
+        monkeypatch.setattr(manager_module, "bootstrap_resources", _failing_bootstrap)
+        try:
+            with pytest.raises(ExceptionGroup):
+                await manager.startup(MagicMock())
+
+            res_a.close.assert_awaited_once()
+            res_b.close.assert_awaited_once()
+            assert not manager._resources
+        finally:
+            monkeypatch.undo()
+
     async def test_close_all_retains_resources_that_failed(self) -> None:
         manager = ResourceManager()
 
@@ -88,6 +116,32 @@ class TestResourceManager:
         assert not manager.has("good")
         # The failed resource should remain for potential retry
         assert manager.has("bad")
+        assert "bad" in exc_info.value.errors
+
+    async def test_close_all_continues_when_close_raises_unexpected_exception(self) -> None:
+        manager = ResourceManager()
+
+        bad = MagicMock()
+        bad.close = AsyncMock(side_effect=KeyError("close failed"))
+
+        good_a = MagicMock()
+        good_a.close = AsyncMock()
+
+        good_b = MagicMock()
+        good_b.close = AsyncMock()
+
+        manager.register("bad", bad)
+        manager.register("good_a", good_a)
+        manager.register("good_b", good_b)
+
+        with pytest.raises(ShutdownError) as exc_info:
+            await manager.close_all()
+
+        good_a.close.assert_awaited_once()
+        good_b.close.assert_awaited_once()
+        assert manager.has("bad")
+        assert not manager.has("good_a")
+        assert not manager.has("good_b")
         assert "bad" in exc_info.value.errors
 
     def test_builtin_factories_include_data_and_queue_resources(self) -> None:

@@ -418,11 +418,19 @@ def request_span(
             yield span
         finally:
             current_exception = sys.exc_info()[1]
-            resolved_status_code = _resolve_status_code(status_code)
+            resolved_status_code: int | None = None
+            status_resolution_error: Exception | None = None
+            try:
+                resolved_status_code = _resolve_status_code(status_code)
+            except Exception as exc:
+                status_resolution_error = exc
+                _mark_span_error(span, exc)
             if resolved_status_code is not None and span is not None:
                 span.set_attribute("http.status_code", resolved_status_code)
             if isinstance(current_exception, Exception):
                 _mark_span_error(span, current_exception)
+                success = False
+            elif status_resolution_error is not None:
                 success = False
             else:
                 success = _is_request_success_from_status_code(resolved_status_code)
@@ -616,10 +624,7 @@ def _resolve_status_code(
     status_code: int | None | Callable[[], int | None],
 ) -> int | None:
     if callable(status_code):
-        try:
-            value = status_code()
-        except (TypeError, ValueError, RuntimeError, AttributeError):
-            return None
+        value = status_code()
     else:
         value = status_code
 

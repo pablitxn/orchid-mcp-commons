@@ -92,7 +92,7 @@ async def bootstrap_bucket(
 
     try:
         await asyncio.to_thread(client.make_bucket, bucket, location=region)
-    except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
+    except Exception as exc:
         # Handle race where another process created it between checks.
         exists = await asyncio.to_thread(client.bucket_exists, bucket)
         if not exists:

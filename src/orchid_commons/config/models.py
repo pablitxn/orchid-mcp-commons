@@ -643,13 +643,9 @@ class ResourceSettings(BaseModel):
             try:
                 buckets = json.loads(mb_buckets_json)
             except (json.JSONDecodeError, ValueError) as exc:
-                raise ValueError(
-                    "MULTI_BUCKET_BUCKETS must be valid JSON: "
-                    f"{exc}"
-                ) from exc
+                raise ValueError(f"MULTI_BUCKET_BUCKETS must be valid JSON: {exc}") from exc
             if not isinstance(buckets, dict) or not all(
-                isinstance(k, str) and isinstance(v, str)
-                for k, v in buckets.items()
+                isinstance(k, str) and isinstance(v, str) for k, v in buckets.items()
             ):
                 raise ValueError(
                     "MULTI_BUCKET_BUCKETS must be a JSON object mapping "

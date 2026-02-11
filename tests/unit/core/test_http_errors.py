@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from types import SimpleNamespace
 from typing import Any
@@ -14,6 +15,7 @@ from orchid_commons.observability.http_errors import (
     _build_error_body,
     _dispatch_exception,
     _log_error,
+    _MinimalJSONResponse,
     _resolve_request_id,
     create_fastapi_error_middleware,
 )
@@ -135,6 +137,26 @@ class TestBuildErrorBody:
                 "request_id": "req-1",
             }
         }
+
+    def test_sanitizes_non_json_serializable_details(self) -> None:
+        body = _build_error_body("req-2", "BROKEN", "bad", {"raw": object(), "values": {1, 2}})
+
+        encoded = json.dumps(body)
+
+        assert "BROKEN" in encoded
+        assert "raw" in encoded
+
+
+class TestMinimalJsonResponse:
+    def test_handles_non_serializable_payload(self) -> None:
+        response = _MinimalJSONResponse(
+            content={"error": {"details": {"raw": object(), "items": {1, 2}}}},
+            status_code=500,
+        )
+
+        decoded = response.body.decode()
+        assert "raw" in decoded
+        assert "items" in decoded
 
 
 # ---------------------------------------------------------------------------

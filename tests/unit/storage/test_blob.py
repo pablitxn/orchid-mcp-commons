@@ -82,6 +82,36 @@ class TestS3BlobStorage:
         response.close.assert_called_once()
         response.release_conn.assert_called_once()
 
+    async def test_download_preserves_read_error_when_cleanup_fails(self) -> None:
+        client = make_client()
+        response = Mock()
+        response.read.side_effect = ConnectionError("read failed")
+        response.close.side_effect = RuntimeError("close failed")
+        response.release_conn.side_effect = RuntimeError("release failed")
+        client.get_object.return_value = response
+        storage = S3BlobStorage(client=client, bucket="assets")
+
+        with pytest.raises(BlobTransientError) as exc_info:
+            await storage.download("greeting.txt")
+
+        assert "read failed" in str(exc_info.value)
+        assert "close failed" not in str(exc_info.value)
+        assert "release failed" not in str(exc_info.value)
+
+    async def test_download_translates_cleanup_error_when_read_succeeds(self) -> None:
+        client = make_client()
+        response = Mock()
+        response.read.return_value = b"hello world"
+        response.headers = {"Content-Type": "text/plain"}
+        response.close.side_effect = ConnectionError("close timeout")
+        client.get_object.return_value = response
+        storage = S3BlobStorage(client=client, bucket="assets")
+
+        with pytest.raises(BlobTransientError) as exc_info:
+            await storage.download("greeting.txt")
+
+        assert "close timeout" in str(exc_info.value)
+
     async def test_exists_returns_false_for_not_found(self) -> None:
         client = make_client()
         client.stat_object.side_effect = FakeS3Error("NoSuchKey", 404)

@@ -88,6 +88,7 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 markers = [
   "integration: tests that require external services (Docker, databases, MinIO)",
+  "e2e: full end-to-end scenarios across multiple connectors",
 ]
 
 [tool.mypy]

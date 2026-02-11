@@ -17,6 +17,7 @@ from orchid_commons.blob.s3 import (
     _DEFAULT_PRESIGN_EXPIRY,
     BlobObject,
     S3BlobStorage,
+    _translate_blob_error,
 )
 from orchid_commons.config.resources import MultiBucketSettings
 from orchid_commons.runtime.errors import MissingDependencyError
@@ -162,7 +163,16 @@ class MultiBucketBlobRouter:
             objects = self._client.list_objects(bucket, prefix=prefix, recursive=recursive)
             return [obj.object_name for obj in objects]
 
-        return await asyncio.to_thread(_list)
+        try:
+            return await asyncio.to_thread(_list)
+        except Exception as exc:
+            translated = _translate_blob_error(
+                operation="list_objects",
+                bucket=bucket,
+                key=prefix or None,
+                exc=exc,
+            )
+            raise translated from exc
 
     async def ensure_buckets(
         self,

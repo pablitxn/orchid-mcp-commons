@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -319,7 +320,17 @@ class S3BlobStorage(ObservableMixin):
             self._observe_error("download", started, translated)
             raise translated from exc
         finally:
-            _safe_close_response(response)
+            try:
+                _safe_close_response(response)
+            except Exception as exc:
+                translated = _translate_blob_error(
+                    operation="download",
+                    bucket=self._bucket,
+                    key=object_key,
+                    exc=exc,
+                )
+                self._observe_error("download", started, translated)
+                raise translated from exc
 
         result = BlobObject(
             key=object_key,
@@ -522,13 +533,27 @@ def _extract_user_metadata(headers: Mapping[str, str]) -> dict[str, str]:
 
 
 def _safe_close_response(response: Any) -> None:
+    errors: list[Exception] = []
+
     close = getattr(response, "close", None)
     if callable(close):
-        close()
+        try:
+            close()
+        except Exception as exc:
+            errors.append(exc)
 
     release_conn = getattr(response, "release_conn", None)
     if callable(release_conn):
-        release_conn()
+        try:
+            release_conn()
+        except Exception as exc:
+            errors.append(exc)
+
+    # Never mask the primary download error with close/release cleanup failures.
+    if errors and sys.exc_info()[1] is None:
+        if len(errors) == 1:
+            raise errors[0]
+        raise ExceptionGroup("Failed to close blob response", errors)
 
 
 def _translate_blob_error(

@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from orchid_commons.blob import MultiBucketBlobRouter
+from orchid_commons.blob import BlobTransientError, MultiBucketBlobRouter
 from orchid_commons.config.resources import MultiBucketSettings
 
 
@@ -211,6 +211,15 @@ class TestMultiBucketBlobRouter:
         client.list_objects.assert_called_once_with(
             "prod-chunks", prefix="segment-", recursive=True
         )
+
+    async def test_list_objects_translates_errors(self) -> None:
+        client = make_client()
+        client.list_objects.side_effect = FakeS3Error("SlowDown", 503)
+        settings = make_settings()
+        router = MultiBucketBlobRouter(client=client, settings=settings)
+
+        with pytest.raises(BlobTransientError):
+            await router.list_objects("chunks", prefix="segment-")
 
     async def test_ensure_buckets_creates_all_buckets(self) -> None:
         client = make_client()

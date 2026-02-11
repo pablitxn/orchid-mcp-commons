@@ -160,6 +160,18 @@ class FakeMotorAsyncioModule:
         return self._client
 
 
+PyMongoAutoReconnectError = type(
+    "AutoReconnect",
+    (Exception,),
+    {"__module__": "pymongo.errors"},
+)
+PyMongoServerSelectionTimeoutError = type(
+    "ServerSelectionTimeoutError",
+    (Exception,),
+    {"__module__": "pymongo.errors"},
+)
+
+
 class TestMongoDbResource:
     async def test_factory_and_crud_helpers(self, monkeypatch: pytest.MonkeyPatch) -> None:
         database = FakeDatabase()
@@ -232,6 +244,30 @@ class TestMongoDbResource:
     async def test_ping_translates_connection_error(self) -> None:
         database = FakeDatabase()
         database.command_error = ConnectionError("mongo unavailable")
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+
+        with pytest.raises(mongodb_module.DocumentTransientError, match="ping"):
+            await resource.ping()
+
+    async def test_ping_translates_pymongo_autoreconnect_as_transient(self) -> None:
+        database = FakeDatabase()
+        database.command_error = PyMongoAutoReconnectError("temporary reconnect")
+        resource = MongoDbResource(
+            _client=FakeMongoClient(database),
+            _database=database,
+            database_name="orchid",
+        )
+
+        with pytest.raises(mongodb_module.DocumentTransientError, match="ping"):
+            await resource.ping()
+
+    async def test_ping_translates_server_selection_timeout_as_transient(self) -> None:
+        database = FakeDatabase()
+        database.command_error = PyMongoServerSelectionTimeoutError("server selection timed out")
         resource = MongoDbResource(
             _client=FakeMongoClient(database),
             _database=database,

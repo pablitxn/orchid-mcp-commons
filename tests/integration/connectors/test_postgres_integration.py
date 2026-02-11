@@ -57,12 +57,12 @@ async def test_postgres_provider_roundtrip(postgres_settings) -> None:
 async def test_postgres_transient_timeout(postgres_settings) -> None:
     provider = await create_postgres_provider(postgres_settings)
     try:
-        provider.command_timeout_seconds = 0.05
-        provider.retry_attempts = 1
+        provider.command_timeout_seconds = 0.1
+        provider.retry_attempts = 0
         provider.retry_backoff_seconds = 0.0
 
         with pytest.raises((TimeoutError, asyncio.TimeoutError)):
-            await provider.fetchval("SELECT pg_sleep(0.2)")
+            await provider.fetchval("SELECT pg_sleep(1.0)")
     finally:
         await provider.close()
 

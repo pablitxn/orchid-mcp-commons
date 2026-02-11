@@ -83,6 +83,28 @@ class FakeLangfuseSdkClient:
         self.shutdown_calls += 1
 
 
+class FailingLangfuseSdkClient(FakeLangfuseSdkClient):
+    def flush(self) -> None:
+        self.flush_calls += 1
+        raise RuntimeError("flush failed")
+
+    def shutdown(self) -> None:
+        self.shutdown_calls += 1
+        raise RuntimeError("shutdown failed")
+
+    def update_current_trace(self, **kwargs: Any) -> None:
+        self.current_trace_updates.append(kwargs)
+        raise RuntimeError("update trace failed")
+
+    def update_current_span(self, **kwargs: Any) -> None:
+        self.current_span_updates.append(kwargs)
+        raise RuntimeError("update span failed")
+
+    def update_current_generation(self, **kwargs: Any) -> None:
+        self.current_generation_updates.append(kwargs)
+        raise RuntimeError("update generation failed")
+
+
 def _build_enabled_settings() -> LangfuseClientSettings:
     return LangfuseClientSettings(
         enabled=True,
@@ -402,6 +424,32 @@ async def test_observe_generation_decorator_async(
 
 def test_update_helpers_proxy_to_underlying_client(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_client = FakeLangfuseSdkClient()
+
+    monkeypatch.setattr(
+        langfuse_module,
+        "_build_langfuse_sdk_client",
+        lambda settings: fake_client,
+    )
+
+    client = create_langfuse_client(settings=_build_enabled_settings())
+
+    client.update_current_trace(user_id="u-123")
+    client.update_current_span(level="DEFAULT")
+    client.update_current_generation(usage_details={"input": 10, "output": 20})
+    client.flush()
+    client.shutdown()
+
+    assert fake_client.current_trace_updates == [{"user_id": "u-123"}]
+    assert fake_client.current_span_updates == [{"level": "DEFAULT"}]
+    assert fake_client.current_generation_updates == [
+        {"usage_details": {"input": 10, "output": 20}}
+    ]
+    assert fake_client.flush_calls == 1
+    assert fake_client.shutdown_calls == 1
+
+
+def test_update_helpers_are_fail_open_when_sdk_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_client = FailingLangfuseSdkClient()
 
     monkeypatch.setattr(
         langfuse_module,

@@ -52,6 +52,18 @@ class FakeRedisModule:
         return self._client
 
 
+RedisDriverTimeoutError = type(
+    "TimeoutError",
+    (Exception,),
+    {"__module__": "redis.exceptions"},
+)
+RedisDriverAuthenticationError = type(
+    "AuthenticationError",
+    (Exception,),
+    {"__module__": "redis.exceptions"},
+)
+
+
 class TestRedisCache:
     async def test_factory_and_cache_operations(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake_client = FakeRedisClient()
@@ -92,3 +104,19 @@ class TestRedisCache:
 
         assert status.healthy is False
         assert status.details == {"error_type": "CacheOperationError"}
+
+    async def test_ping_translates_redis_driver_timeout_as_transient(self) -> None:
+        client = FakeRedisClient()
+        client.ping_error = RedisDriverTimeoutError("operation timed out")
+        cache = RedisCache(_client=client)
+
+        with pytest.raises(redis_module.CacheTransientError):
+            await cache.ping()
+
+    async def test_ping_translates_redis_driver_auth_error(self) -> None:
+        client = FakeRedisClient()
+        client.ping_error = RedisDriverAuthenticationError("invalid password")
+        cache = RedisCache(_client=client)
+
+        with pytest.raises(redis_module.CacheAuthError):
+            await cache.ping()

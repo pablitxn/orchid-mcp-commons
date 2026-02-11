@@ -203,6 +203,16 @@ class TestPostgresProvider:
         assert status.message == "boom"
         assert status.details == {"error_type": "RuntimeError"}
 
+    async def test_health_check_handles_unexpected_exception(self) -> None:
+        pool = FakePool()
+        pool.connection.fetchval_error = KeyError("missing")
+        provider = build_provider(pool)
+
+        status = await provider.health_check()
+
+        assert status.healthy is False
+        assert status.details == {"error_type": "KeyError"}
+
     async def test_close_timeout_terminates_pool(self) -> None:
         pool = FakePool()
         pool.close_delay_seconds = 0.05

@@ -180,29 +180,46 @@ class LangfuseClient:
         return _current_otel_trace_id()
 
     def flush(self) -> None:
-        if self._client is None:
+        client = self._client
+        if client is None:
             return
-        self._client.flush()
+        self._safe_client_call("flush", client.flush)
 
     def shutdown(self) -> None:
-        if self._client is None:
+        client = self._client
+        if client is None:
             return
-        self._client.shutdown()
+        self._safe_client_call("shutdown", client.shutdown)
 
     def update_current_trace(self, **kwargs: Any) -> None:
-        if self._client is None:
+        client = self._client
+        if client is None:
             return
-        self._client.update_current_trace(**kwargs)
+        self._safe_client_call(
+            "update_current_trace",
+            client.update_current_trace,
+            **kwargs,
+        )
 
     def update_current_span(self, **kwargs: Any) -> None:
-        if self._client is None:
+        client = self._client
+        if client is None:
             return
-        self._client.update_current_span(**kwargs)
+        self._safe_client_call(
+            "update_current_span",
+            client.update_current_span,
+            **kwargs,
+        )
 
     def update_current_generation(self, **kwargs: Any) -> None:
-        if self._client is None:
+        client = self._client
+        if client is None:
             return
-        self._client.update_current_generation(**kwargs)
+        self._safe_client_call(
+            "update_current_generation",
+            client.update_current_generation,
+            **kwargs,
+        )
 
     def start_span(
         self,
@@ -413,6 +430,17 @@ class LangfuseClient:
             return sync_wrapper  # type: ignore[return-value]
 
         return decorator
+
+    def _safe_client_call(
+        self,
+        operation: str,
+        callback: Callable[..., Any],
+        **kwargs: Any,
+    ) -> None:
+        try:
+            callback(**kwargs)
+        except Exception:
+            logger.debug("Langfuse client operation '%s' failed", operation, exc_info=True)
 
 
 def get_default_langfuse_client() -> LangfuseClient | None:

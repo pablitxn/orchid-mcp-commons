@@ -118,7 +118,7 @@ def minio_settings() -> Iterator[MinioSettings]:
 
     _require_docker()
     DockerContainer = pytest.importorskip("testcontainers.core.container").DockerContainer
-    image = os.getenv("ORCHID_MINIO_IMAGE", "minio/minio:latest")
+    image = os.getenv("ORCHID_MINIO_IMAGE", "minio/minio:RELEASE.2025-09-07T16-13-09Z")
     container = (
         DockerContainer(image)
         .with_env("MINIO_ROOT_USER", access_key)

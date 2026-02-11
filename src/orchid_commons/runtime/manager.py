@@ -124,11 +124,11 @@ class ResourceManager:
                     raise MissingRequiredResourceError(
                         f"Required resources not configured: {', '.join(missing)}"
                     )
-        except (MissingRequiredResourceError, OSError, TimeoutError, RuntimeError, ValueError) as exc:
+        except Exception as exc:
             # Best-effort cleanup of already-initialized resources
             try:
                 await self.close_all()
-            except (ShutdownError, OSError, TimeoutError, RuntimeError):
+            except Exception:
                 pass
             self._metrics_recorder().observe_operation(
                 resource="runtime",
@@ -167,7 +167,7 @@ class ResourceManager:
                     maybe_awaitable = close()
                     if hasattr(maybe_awaitable, "__await__"):
                         await maybe_awaitable
-                except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
+                except Exception as exc:
                     errors[name] = exc
 
             # Only remove successfully closed resources
@@ -177,7 +177,7 @@ class ResourceManager:
 
             if errors:
                 raise ShutdownError(errors)
-        except (ShutdownError, OSError, TimeoutError, RuntimeError) as exc:
+        except Exception as exc:
             self._metrics_recorder().observe_operation(
                 resource="runtime",
                 operation="shutdown",

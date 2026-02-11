@@ -303,7 +303,7 @@ class PostgresProvider(ObservableMixin):
                 latency_ms=(time.perf_counter() - start) * 1000,
                 message="ok",
             )
-        except (OSError, TimeoutError, RuntimeError, ValueError) as exc:
+        except Exception as exc:
             return HealthStatus(
                 healthy=False,
                 latency_ms=(time.perf_counter() - start) * 1000,

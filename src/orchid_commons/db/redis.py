@@ -33,6 +33,21 @@ class CacheOperationError(CacheError):
     """Raised for non-transient cache failures."""
 
 
+_REDIS_AUTH_EXCEPTION_NAMES = {
+    "AuthenticationError",
+    "AuthenticationWrongNumberOfArgsError",
+    "NoPermissionError",
+}
+_REDIS_TRANSIENT_EXCEPTION_NAMES = {
+    "BusyLoadingError",
+    "ClusterDownError",
+    "ConnectionError",
+    "MasterDownError",
+    "TimeoutError",
+    "TryAgainError",
+}
+
+
 def _import_redis_asyncio() -> Any:
     try:
         import redis.asyncio as redis_asyncio
@@ -50,9 +65,33 @@ def _translate_redis_error(*, operation: str, exc: Exception) -> CacheError:
         return exc
     message = str(exc) or type(exc).__name__
     lower = message.lower()
-    if "auth" in lower or "noauth" in lower or "wrongpass" in lower:
+    exc_name = type(exc).__name__
+    exc_module = type(exc).__module__.lower()
+    redis_driver_error = exc_module.startswith("redis")
+
+    if (
+        "auth" in lower
+        or "noauth" in lower
+        or "wrongpass" in lower
+        or (redis_driver_error and exc_name in _REDIS_AUTH_EXCEPTION_NAMES)
+    ):
         return CacheAuthError(operation, message)
-    if isinstance(exc, (TimeoutError, ConnectionError, OSError)):
+    if isinstance(exc, (TimeoutError, ConnectionError, OSError)) or (
+        redis_driver_error and exc_name in _REDIS_TRANSIENT_EXCEPTION_NAMES
+    ):
+        return CacheTransientError(operation, message)
+    if redis_driver_error and any(
+        token in lower
+        for token in (
+            "connection refused",
+            "connection reset",
+            "temporarily unavailable",
+            "timed out",
+            "timeout",
+            "try again",
+            "loading",
+        )
+    ):
         return CacheTransientError(operation, message)
     return CacheOperationError(operation, message)
 

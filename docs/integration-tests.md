@@ -9,6 +9,18 @@ uv sync --extra all --extra dev
 uv run pytest -m integration
 ```
 
+Run only connector/observability integration (exclude full e2e):
+
+```bash
+uv run pytest tests/integration/connectors tests/integration/observability -m "integration and not e2e"
+```
+
+Run only full end-to-end suite:
+
+```bash
+uv run pytest tests/integration/e2e/test_e2e_all_modules.py -m e2e
+```
+
 ## Matrix
 
 | Area | Test file | External dependency |
@@ -18,6 +30,7 @@ uv run pytest -m integration
 | MinIO | `tests/integration/connectors/test_minio_integration.py` | Docker (or external endpoint) |
 | Qdrant | `tests/integration/connectors/test_qdrant_integration.py` | Docker (or external endpoint) |
 | Observability smoke | `tests/integration/observability/test_observability_integration.py` | `observability` extra |
+| E2E full stack | `tests/integration/e2e/test_e2e_all_modules.py` | Docker (or external services via env vars) |
 
 Qdrant CI compatibility matrix:
 - `qdrant/qdrant:v1.15.0`
@@ -31,7 +44,7 @@ PostgreSQL fixture behavior:
 
 MinIO fixture behavior:
 - If `ORCHID_MINIO_ENDPOINT` is set, tests use provided endpoint and credentials.
-- Otherwise, tests start `minio/minio:latest` via testcontainers.
+- Otherwise, tests start `minio/minio:RELEASE.2025-09-07T16-13-09Z` via testcontainers.
 
 Qdrant fixture behavior:
 - If `ORCHID_QDRANT_URL` or `ORCHID_QDRANT_HOST` is set, tests use provided endpoint.
@@ -43,7 +56,7 @@ Optional MinIO env vars:
 - `ORCHID_MINIO_BUCKET` (default: generated `orchid-integration-*`)
 - `ORCHID_MINIO_SECURE` (default: `false`)
 - `ORCHID_MINIO_REGION` (optional)
-- `ORCHID_MINIO_IMAGE` (default: `minio/minio:latest`)
+- `ORCHID_MINIO_IMAGE` (default: `minio/minio:RELEASE.2025-09-07T16-13-09Z`)
 
 Optional PostgreSQL env vars:
 - `ORCHID_POSTGRES_DSN` (external DSN override)

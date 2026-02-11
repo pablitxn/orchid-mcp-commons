@@ -40,7 +40,8 @@ def _build_standard_record_keys() -> frozenset[str]:
     """Return all reserved LogRecord attributes across supported Python versions."""
     record_keys = set(logging.makeLogRecord({}).__dict__.keys())
     # These are formatter-generated, not always present in the initial record dict.
-    record_keys.update({"asctime", "message"})
+    # taskName was added in newer Python versions; reserve it consistently.
+    record_keys.update({"asctime", "message", "taskName"})
     return frozenset(record_keys)
 
 

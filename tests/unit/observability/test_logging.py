@@ -127,9 +127,7 @@ def test_parse_traceparent_rejects_invalid_format() -> None:
 
 
 def test_parse_traceparent_rejects_reserved_ff_version() -> None:
-    trace_id, span_id = parse_traceparent(
-        "ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
-    )
+    trace_id, span_id = parse_traceparent("ff-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
     assert trace_id is None
     assert span_id is None
 
