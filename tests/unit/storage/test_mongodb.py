@@ -208,6 +208,27 @@ class TestMongoDbResource:
         assert fake_motor.calls[0]["uri"] == "mongodb://localhost:27017"
         assert fake_motor.calls[0]["appname"] == "orchid-tests"
 
+    async def test_create_translates_startup_ping_error_and_closes_client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        database = FakeDatabase()
+        database.command_error = ConnectionError("temporary network issue")
+        client = FakeMongoClient(database)
+        fake_motor = FakeMotorAsyncioModule(client)
+        monkeypatch.setattr(mongodb_module, "_import_motor_asyncio", lambda: fake_motor)
+
+        with pytest.raises(mongodb_module.DocumentTransientError, match="create"):
+            await create_mongodb_resource(
+                MongoDbSettings(
+                    uri="mongodb://localhost:27017",
+                    database="orchid",
+                    app_name="orchid-tests",
+                )
+            )
+
+        assert client.closed is True
+
     async def test_health_check_unhealthy(self) -> None:
         database = FakeDatabase()
         database.command_error = RuntimeError("mongo unavailable")

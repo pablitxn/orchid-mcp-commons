@@ -315,16 +315,21 @@ def rabbitmq_settings() -> Iterator[RabbitMqSettings]:
     try:
         host = container.get_container_host_ip()
         port = container.get_exposed_port(5672)
-        # Wait for AMQP to be ready
+        # Wait for AMQP protocol handshake readiness (not only open TCP port).
         import socket
 
         deadline = time.monotonic() + 30.0
         while time.monotonic() < deadline:
             try:
-                with socket.create_connection((host, int(port)), timeout=1.0):
-                    break
+                with socket.create_connection((host, int(port)), timeout=1.0) as sock:
+                    sock.settimeout(1.0)
+                    sock.sendall(b"AMQP\x00\x00\x09\x01")
+                    if sock.recv(8).startswith(b"AMQP"):
+                        break
             except OSError:
                 time.sleep(0.3)
+        else:
+            pytest.skip("RabbitMQ AMQP handshake did not become ready within 30 seconds")
 
         yield RabbitMqSettings(
             url=f"amqp://guest:guest@{host}:{port}/",

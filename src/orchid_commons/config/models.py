@@ -285,6 +285,21 @@ class RabbitMqSettings(BaseModel):
         default=True,
         description="Enable publisher confirms on channel",
     )
+    startup_retry_attempts: int = Field(
+        default=4,
+        ge=1,
+        description="Connection bootstrap attempts before failing",
+    )
+    startup_retry_initial_backoff_seconds: float = Field(
+        default=0.25,
+        gt=0.0,
+        description="Initial retry backoff for startup attempts",
+    )
+    startup_retry_max_backoff_seconds: float = Field(
+        default=3.0,
+        gt=0.0,
+        description="Maximum retry backoff for startup attempts",
+    )
 
 
 class QdrantSettings(BaseModel):
@@ -553,6 +568,13 @@ class ResourceSettings(BaseModel):
                 connect_timeout_seconds=float(env("RABBITMQ_CONNECT_TIMEOUT_SECONDS") or 10.0),
                 heartbeat_seconds=int(env("RABBITMQ_HEARTBEAT_SECONDS") or 60),
                 publisher_confirms=env_bool("RABBITMQ_PUBLISHER_CONFIRMS", True),
+                startup_retry_attempts=int(env("RABBITMQ_STARTUP_RETRY_ATTEMPTS") or 4),
+                startup_retry_initial_backoff_seconds=float(
+                    env("RABBITMQ_STARTUP_RETRY_INITIAL_BACKOFF_SECONDS") or 0.25
+                ),
+                startup_retry_max_backoff_seconds=float(
+                    env("RABBITMQ_STARTUP_RETRY_MAX_BACKOFF_SECONDS") or 3.0
+                ),
             )
 
         qdrant = None
