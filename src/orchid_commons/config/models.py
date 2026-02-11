@@ -55,12 +55,8 @@ class LangfuseSettings(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     enabled: bool = Field(default=True, description="Enable Langfuse tracing")
-    public_key: SecretStr = Field(
-        default=None, min_length=1, description="Langfuse public key"
-    )
-    secret_key: SecretStr = Field(
-        default=None, min_length=1, description="Langfuse secret key"
-    )
+    public_key: SecretStr = Field(default=None, min_length=1, description="Langfuse public key")
+    secret_key: SecretStr = Field(default=None, min_length=1, description="Langfuse secret key")
     base_url: str = Field(
         default="https://cloud.langfuse.com",
         min_length=1,

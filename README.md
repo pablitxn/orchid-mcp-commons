@@ -331,6 +331,13 @@ uv run pip-audit
 uv build
 ```
 
+Install pre-commit hooks (recommended):
+
+```bash
+uv run pre-commit install
+uv run pre-commit run --all-files
+```
+
 CI-parity test command:
 
 ```bash
