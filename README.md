@@ -2,7 +2,18 @@
 
 Shared resource connections for Orchid ecosystem services and MCPs.
 
-## Install as dependency
+`orchid_commons` centralizes:
+- typed configuration loading (`appsettings*.json` + environment placeholders),
+- async resource lifecycle management,
+- data/storage connectors (SQL, cache, document, queue, vector, blob),
+- observability primitives (logging, Prometheus, OpenTelemetry, Langfuse),
+- framework helpers for HTTP correlation and request tracing.
+
+## Requirements
+
+- Python `>=3.11`
+
+## Installation
 
 ```bash
 uv add orchid-skills-commons
@@ -10,40 +21,179 @@ uv add orchid-skills-commons
 pip install orchid-skills-commons
 ```
 
-## Setup
-
-This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
-
-### Install uv
+Install with extras when you need specific integrations:
 
 ```bash
-# macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# broad runtime profile
+uv add "orchid-skills-commons[all]"
 
-# or with Homebrew
-brew install uv
+# focused profiles
+uv add "orchid-skills-commons[postgres]"
+uv add "orchid-skills-commons[blob]"
+uv add "orchid-skills-commons[observability]"
 ```
 
-### Install dependencies
+## Optional extras
 
-```bash
-# Install all dependencies (recommended for development)
-uv sync --extra all --extra dev
+| Extra | Description | Key packages |
+| --- | --- | --- |
+| `sqlite` | SQLite resource | `aiosqlite` |
+| `sql` | PostgreSQL alias (legacy name) | `asyncpg` |
+| `postgres` | PostgreSQL resource | `asyncpg` |
+| `redis` | Redis cache resource | `redis` |
+| `mongodb` | MongoDB resource | `motor` |
+| `rabbitmq` | RabbitMQ broker resource | `aio-pika` |
+| `qdrant` | Qdrant vector store | `qdrant-client` |
+| `pgvector` | pgvector helpers (with PostgreSQL) | `pgvector`, `asyncpg` |
+| `blob` | MinIO/S3 + R2 + multi-bucket router | `minio` |
+| `http` | HTTP framework integrations | `fastapi`, `starlette`, `aiohttp` |
+| `observability` | Metrics/tracing/Langfuse | `prometheus-client`, `opentelemetry-*`, `langfuse` |
+| `db` | Combined data connectors | sqlite + postgres + redis + mongodb + rabbitmq + qdrant + pgvector |
+| `all` | Runtime umbrella profile | `db` + `blob` + `http` + `observability` |
+| `dev` | Local QA/tooling | `pytest`, `ruff`, `mypy`, `pip-audit`, `pyright`, `pylint`, `testcontainers` |
 
-# Install only specific extras
-uv sync --extra db            # PostgreSQL + Redis + MongoDB support
-uv sync --extra sql           # PostgreSQL-only support (legacy alias)
-uv sync --extra redis         # Redis-only support
-uv sync --extra mongodb       # MongoDB-only support
-uv sync --extra rabbitmq      # RabbitMQ async support
-uv sync --extra qdrant        # Qdrant vector DB support
-uv sync --extra blob          # MinIO/S3 support
-uv sync --extra observability # Prometheus + OpenTelemetry + Langfuse support
+## Quick start
+
+### 1) Load config and bootstrap resources
+
+```python
+from orchid_commons import (
+    ResourceManager,
+    bootstrap_logging_from_app_settings,
+    load_config,
+)
+
+settings = load_config(config_dir="config", env="development")
+bootstrap_logging_from_app_settings(settings, env="development")
+
+manager = ResourceManager()
+await manager.startup(settings.resources, required=["sqlite"])
+
+sqlite = manager.get("sqlite")
+row = await sqlite.fetchone("SELECT 1 AS ok")
+
+await manager.close_all()
 ```
 
-## Structured logging
+### 2) Minimal `appsettings.json`
 
-`orchid_commons` includes a standard logging bootstrap for web services and MCP servers.
+```json
+{
+  "service": {
+    "name": "orchid-service",
+    "version": "1.0.0"
+  },
+  "resources": {
+    "sqlite": {
+      "db_path": "data/app.db"
+    }
+  }
+}
+```
+
+### 3) Environment overrides with placeholders
+
+```json
+{
+  "observability": {
+    "otlp_endpoint": "${OTEL_EXPORTER_OTLP_ENDPOINT}"
+  },
+  "resources": {
+    "postgres": {
+      "dsn": "${DATABASE_URL}"
+    }
+  }
+}
+```
+
+`load_config()` merge order:
+1. `appsettings.json`
+2. `appsettings.<env>.json`
+3. placeholder resolution from environment variables
+
+## ResourceManager
+
+`ResourceManager` is the runtime entry point for lifecycle + health:
+- `startup(settings, required=[...])`
+- `get(name)` / `has(name)`
+- `health_report()` and `health_payload()`
+- `close_all()` with aggregated shutdown errors
+
+Built-in resource names:
+- `sqlite`
+- `postgres`
+- `redis`
+- `mongodb`
+- `rabbitmq`
+- `qdrant`
+- `minio`
+- `r2`
+- `multi_bucket`
+
+## Storage and data connectors
+
+### SQL, cache, document, queue, vector
+
+Main providers:
+- `SqliteResource`
+- `PostgresProvider`
+- `RedisCache`
+- `MongoDbResource`
+- `RabbitMqBroker`
+- `QdrantVectorStore`
+
+Vector contract (`VectorStore`) includes:
+- `upsert(...)`
+- `search(...)`
+- `delete(...)`
+- `count(...)`
+- `health_check()`
+
+### Blob (MinIO/S3-compatible + R2)
+
+```python
+from orchid_commons import MinioSettings, create_minio_profile
+
+profile = await create_minio_profile(
+    MinioSettings.local_dev(
+        access_key="minioadmin",
+        secret_key="minioadmin",
+        bucket="orchid-dev",
+    )
+)
+
+await profile.upload("hello.txt", b"hello")
+obj = await profile.download("hello.txt")
+```
+
+Cloudflare R2 uses `R2Settings` + `create_r2_profile()` and the same S3-compatible flow.
+
+### Multi-bucket router
+
+```python
+from orchid_commons.blob import create_multi_bucket_router
+from orchid_commons.config import MultiBucketSettings
+
+router = await create_multi_bucket_router(
+    MultiBucketSettings(
+        endpoint="localhost:9000",
+        access_key="minioadmin",
+        secret_key="minioadmin",
+        buckets={
+            "videos": "orchid-videos",
+            "chunks": "orchid-chunks"
+        },
+        create_buckets_if_missing=True,
+        secure=False,
+    )
+)
+
+await router.upload("videos", "clip.mp4", b"...")
+```
+
+## Observability
+
+### Structured logging
 
 ```python
 import logging
@@ -54,18 +204,10 @@ settings = load_config(config_dir="config", env="development")
 bootstrap_logging_from_app_settings(settings, env="development")
 
 logger = logging.getLogger(__name__)
-logger.info("service started")
+logger.info("service_started")
 ```
 
-Field naming and required structured fields are defined in:
-
-- `docs/logging-fields.md`
-- `docs/logging-compat-migration.md`
-
-### Structlog-style compatibility bridge
-
-For incremental migrations, use the compatibility adapter and keep existing
-event-style calls:
+Compatibility adapter for event-style logging:
 
 ```python
 from orchid_commons import get_structlog_compat_logger
@@ -74,32 +216,18 @@ logger = get_structlog_compat_logger(__name__).bind(component="bot_manager")
 logger.info("bot_started", bot_name="orchid-main")
 ```
 
-## Prometheus Metrics
-
-`orchid_commons` provides a Prometheus metrics layer for resource/runtime operations
-using the `orchid_*` naming convention.
-
-### Quick start
+### Prometheus
 
 ```python
-from orchid_commons import (
-    ResourceManager,
-    ResourceSettings,
-    SqliteSettings,
-    configure_prometheus_metrics,
-    start_prometheus_http_server,
-)
+from orchid_commons import configure_prometheus_metrics, start_prometheus_http_server
 
 configure_prometheus_metrics()
 start_prometheus_http_server(port=9464)
-
-manager = ResourceManager()
-await manager.startup(ResourceSettings(sqlite=SqliteSettings()))
 ```
 
-Scrape endpoint: `http://localhost:9464/metrics`
+Endpoint: `http://localhost:9464/metrics`
 
-### ASGI `/metrics` bridge
+ASGI bridge:
 
 ```python
 from orchid_commons import create_prometheus_asgi_app
@@ -108,33 +236,7 @@ metrics_app = create_prometheus_asgi_app()
 # app.mount("/metrics", metrics_app)
 ```
 
-Metric names, labels and Grafana starter queries:
-- `docs/prometheus-metrics.md`
-
-## OpenTelemetry (OTLP)
-
-`orchid_commons` can bootstrap OpenTelemetry SDK (traces + metrics) and wire OTLP exporters
-from `appsettings`.
-
-### Config example
-
-```json
-{
-  "observability": {
-    "enabled": true,
-    "otlp_endpoint": "http://otel-collector:4317",
-    "sample_rate": 1.0,
-    "otlp_timeout_seconds": 10.0,
-    "retry_enabled": true,
-    "retry_max_attempts": 3,
-    "retry_initial_backoff_seconds": 0.2,
-    "retry_max_backoff_seconds": 5.0,
-    "metrics_export_interval_seconds": 30.0
-  }
-}
-```
-
-### Bootstrap
+### OpenTelemetry + Langfuse
 
 ```python
 from orchid_commons import bootstrap_observability, load_config
@@ -143,324 +245,108 @@ settings = load_config(config_dir="config", env="production")
 bootstrap_observability(settings)
 ```
 
-Resource operations already instrumented through the shared recorder (`ResourceManager`,
-`SqliteResource`, `PostgresProvider`, `S3BlobStorage`), and you can instrument request handlers
-with:
+Manual spans:
 
 ```python
 from orchid_commons import request_span
 
 with request_span("http.request", method="GET", route="/health"):
-    ...
+    pass
 ```
 
-## HTTP Correlation + Request Spans
+### HTTP correlation middleware
 
-`orchid_commons` provides framework helpers to bind `request_id` / `trace_id` / `span_id`
-and emit request spans with minimal boilerplate.
-
-### FastAPI middleware
+FastAPI:
 
 ```python
 from fastapi import FastAPI
-
 from orchid_commons import create_fastapi_observability_middleware
 
 app = FastAPI()
 app.middleware("http")(create_fastapi_observability_middleware())
 ```
 
-### FastAPI dependency (correlation only)
-
-```python
-from fastapi import Depends, FastAPI
-
-from orchid_commons import create_fastapi_correlation_dependency
-
-app = FastAPI()
-correlation_dependency = create_fastapi_correlation_dependency()
-
-@app.get("/health")
-async def health(_: object = Depends(correlation_dependency)) -> dict[str, bool]:
-    return {"ok": True}
-```
-
-### aiohttp middleware
+aiohttp:
 
 ```python
 from aiohttp import web
-
 from orchid_commons import create_aiohttp_observability_middleware
 
 app = web.Application(
-    middlewares=[
-        create_aiohttp_observability_middleware(),
-    ]
+    middlewares=[create_aiohttp_observability_middleware()],
 )
 ```
 
-### Generic HTTP hook
+## Health endpoint payload
 
 ```python
-from orchid_commons import http_request_scope
-
-status_code: int | None = None
-with http_request_scope(
-    method=request.method,
-    route=request.path,
-    headers=request.headers,
-    status_code=lambda: status_code,
-) as correlation:
-    response = await handler(request)
-    status_code = response.status
-```
-
-## Aggregated health checks (`/health`)
-
-`ResourceManager` can aggregate readiness/liveness checks across all registered resources and
-optional observability backends.
-
-```python
-from orchid_commons import ResourceManager
-
-manager = ResourceManager()
-# ... register/bootstrap resources
-
 report = await manager.health_report()
-payload = report.to_dict()  # JSON-serializable
+payload = report.to_dict()
 # or directly:
 # payload = await manager.health_payload()
 ```
 
-Returned payload includes:
-- per-resource check status + latency (`sqlite`, `postgres`, `redis`, `mongodb`, `rabbitmq`, `qdrant`, `minio`, `r2`, etc.)
-- aggregate status (`ok`, `degraded`, `down`)
-- readiness/liveness booleans
-- optional `otel`/`langfuse` checks when enabled
+Includes:
+- aggregate status (`ok`, `degraded`, `down`),
+- readiness/liveness booleans,
+- per-resource latency/status,
+- optional `otel` / `langfuse` checks when enabled.
 
+## Local examples
 
-### Local observability stack example
-
-A complete local stack (Prometheus + Grafana + OTel Collector + Jaeger + demo app) is available at:
-
-- `examples/observability/README.md`
-
-## Blob API (S3-compatible)
-
-`S3BlobStorage` implements the common `BlobStorage` contract for MinIO/S3-compatible
-providers (including Cloudflare R2 endpoints).
-
-### Contract
-
-- `upload(key, data, *, content_type=None, metadata=None) -> None`
-- `download(key) -> BlobObject`
-- `exists(key) -> bool`
-- `delete(key) -> None`
-- `presign(key, *, method="GET"|"PUT", expires=timedelta(...)) -> str`
-- `health_check() -> HealthStatus`
-
-### Typed errors
-
-- `BlobNotFoundError` for missing bucket/object (`404` / `NoSuchKey` / `NoSuchBucket`)
-- `BlobAuthError` for auth/permission failures (`401/403` / `AccessDenied`)
-- `BlobTransientError` for retryable failures (timeouts, network, `5xx`, `429`)
-- `BlobOperationError` for other non-transient backend failures
-
-## MinIO profile (local/dev)
-
-`MinioProfile` builds on top of `S3BlobStorage` and adds:
-
-- local/dev constructor defaults (`minio_local_dev_settings` or `MinioSettings.local_dev`)
-- bucket bootstrap helper (`create_bucket_if_missing`)
-- MinIO-specific health check with endpoint + bucket details
-
-### Quick start with docker-compose
+Infrastructure stack (MinIO, Postgres, Redis, MongoDB, RabbitMQ, Qdrant):
 
 ```bash
-docker compose -f docker-compose.minio.yml up -d
+docker compose -f examples/infrastructure/docker-compose.yml up -d
 ```
 
-```python
-from orchid_commons import ResourceManager, ResourceSettings, MinioSettings
+Observability stack (Prometheus, Grafana, OTel Collector, Jaeger, demo app):
 
-manager = ResourceManager()
-settings = ResourceSettings(minio=MinioSettings.local_dev(bucket="orchid-dev"))
-
-await manager.startup(settings, required=["minio"])
-blob = manager.get("minio")  # MinioProfile
-
-await blob.upload("hello.txt", b"hello")
-status = await blob.health_check()
+```bash
+cd examples/observability
+docker compose up --build
 ```
 
-Integration matrix details (dependencies, containers, env overrides):
-- `docs/integration-tests.md`
+See:
+- `examples/infrastructure/README.md`
+- `examples/observability/README.md`
 
 ## Development
 
-### Run tests
-
-```bash
-uv run pytest
-```
-
-### Run integration tests
+Install all runtime integrations + developer tooling:
 
 ```bash
 uv sync --extra all --extra dev
+```
+
+Quality commands:
+
+```bash
+uv run pytest
 uv run pytest -m integration
-```
-
-By default, PostgreSQL and MinIO tests use Docker testcontainers.
-You can point tests to existing services through env vars documented in:
-- `docs/integration-tests.md`
-
-### Run linter
-
-```bash
 uv run ruff check .
-```
-
-### Format code
-
-```bash
-uv run ruff format .
-```
-
-### Type checking
-
-```bash
+uv run ruff format --check .
 uv run mypy src
+uv run pip-audit
+uv build
 ```
 
-### Run all checks
+CI-parity test command:
 
 ```bash
-uv run ruff check . && uv run ruff format --check . && uv run pytest
+uv run pytest --cov=src --cov-report=term-missing --cov-report=xml
 ```
 
-## Commons-first service standard
+## Additional docs
 
-Use this baseline when implementing or migrating Orchid Python services
-(including `matrix-orchid-bot`):
-
-- Standard definition: `docs/commons-first-python-quality-standard.md`
-- Reusable starter template: `examples/quality/python-service-template/README.md`
-
-## Extras
-
-| Extra           | Description                        | Dependencies                          |
-| --------------- | ---------------------------------- | ------------------------------------- |
-| `db`            | SQL + cache + document databases   | asyncpg, redis, motor, aio-pika, qdrant-client |
-| `sql`           | PostgreSQL async support           | asyncpg                               |
-| `redis`         | Redis async cache support          | redis                                 |
-| `mongodb`       | MongoDB async support              | motor                                 |
-| `rabbitmq`      | RabbitMQ async messaging           | aio-pika                              |
-| `qdrant`        | Qdrant vector database             | qdrant-client                         |
-| `blob`          | Object storage (MinIO/S3)          | minio                                 |
-| `observability` | Tracing and metrics                | prometheus-client, opentelemetry-api, opentelemetry-sdk, opentelemetry-exporter-otlp, langfuse |
-| `all`           | All of the above                   | db + blob + observability             |
-| `dev`           | Development tools                  | pytest, ruff, mypy                    |
-
-## Database Providers
-
-- `SqliteResource` (`aiosqlite`) for local/dev and lightweight deployments.
-  Uses a single shared connection — suitable for CLI tools, MCPs, and
-  single-tenant apps. **Not recommended** for multi-request HTTP servers
-  under concurrent load (use `PostgresProvider` instead).
-- `PostgresProvider` (`asyncpg` pool) for production-like workloads.
-- `RedisCache` (`redis.asyncio`) for key/value cache workflows.
-- `MongoDbResource` (`motor`) for document storage workflows.
-- `RabbitMqBroker` (`aio-pika`) for queue publishing/consumption primitives.
-- `QdrantVectorStore` (`qdrant-client`) for vector indexing/search primitives.
-- SQL providers share a common query API (`execute`, `executemany`, `fetchone`, `fetchall`,
-  `transaction`, `health_check`, `close`), while Redis/MongoDB/RabbitMQ/Qdrant add native helpers.
-
-### Vector contract (shared)
-
-`QdrantVectorStore` implements a common vector contract (`VectorStore`) with:
-
-- `upsert(collection_name, points) -> int`
-- `search(collection_name, query_vector, *, limit=10, filters=None, score_threshold=None, with_payload=True, with_vectors=False) -> list[VectorSearchResult]`
-- `delete(collection_name, *, ids=None, filters=None) -> int` (for `filters`, returns best-effort pre-delete match count)
-- `count(collection_name, *, filters=None) -> int`
-- `health_check() -> HealthStatus`
-- `close() -> None`
-
-Typed vector errors:
-- `VectorAuthError`
-- `VectorNotFoundError`
-- `VectorTransientError`
-- `VectorValidationError`
-- `VectorOperationError`
-
-## Integration and Migration Docs
-
-- Playbook Romy + youtube-mcp: `docs/integration-playbook-romy-youtube.md`
-- Romy SQLite -> PostgreSQL map: `docs/romy-sqlite-to-postgres.md`
-- youtube-mcp extraction map: `docs/youtube-mcp-extraction-map.md`
-- Kubernetes Sealed Secrets recommendations: `docs/k8s-sealed-secrets.md`
-
-## Cloudflare R2 (S3-compatible)
-
-`orchid_commons` now supports a dedicated R2 profile on top of the same S3-compatible client flow used by MinIO.
-
-### Environment variables
-
-```bash
-# Required auth
-ORCHID_R2_ACCESS_KEY=...
-ORCHID_R2_SECRET_KEY=...
-
-# One of these endpoint options is required
-ORCHID_R2_ACCOUNT_ID=<cloudflare-account-id>
-# ORCHID_R2_ENDPOINT=<custom-or-account-endpoint>
-
-# Optional
-ORCHID_R2_BUCKET=orchid
-ORCHID_R2_CREATE_BUCKET_IF_MISSING=false
-ORCHID_R2_SECURE=true
-ORCHID_R2_REGION=auto
-```
-
-### Notes vs MinIO / AWS S3
-
-- Endpoint derivation: if `ORCHID_R2_ENDPOINT` is not set, endpoint is derived as `<account_id>.r2.cloudflarestorage.com`.
-- Transport defaults: R2 defaults to `secure=true`.
-- Region defaults: R2 defaults to `region=auto`.
-- Auth + presigned URLs: R2 and MinIO both use the same S3-compatible client kwargs contract (`endpoint`, `access_key`, `secret_key`, `secure`, `region`), so presign flows stay identical from callers.
-
-## Langfuse (LLM/Agent traces)
-
-`orchid_commons` includes a Langfuse wrapper with:
-- setup from `appsettings` or environment variables,
-- decorators for span/generation instrumentation (sync + async),
-- safe no-op fallback when disabled or credentials are missing,
-- OTel correlation by propagating the active `trace_id`.
-
-### Environment variables
-
-```bash
-ORCHID_LANGFUSE_ENABLED=true
-ORCHID_LANGFUSE_PUBLIC_KEY=...
-ORCHID_LANGFUSE_SECRET_KEY=...
-ORCHID_LANGFUSE_BASE_URL=https://cloud.langfuse.com
-ORCHID_LANGFUSE_ENVIRONMENT=production
-ORCHID_LANGFUSE_RELEASE=1.2.3
-ORCHID_LANGFUSE_SAMPLE_RATE=1.0
-```
-
-### Quick usage
-
-```python
-from orchid_commons import create_langfuse_client
-
-langfuse = create_langfuse_client()
-
-@langfuse.observe_generation(name="agent.answer", model="gpt-4.1-mini")
-async def answer(prompt: str) -> str:
-    return prompt.upper()
-```
+- `docs/prometheus-metrics.md`
+- `docs/logging-fields.md`
+- `docs/logging-compat-migration.md`
+- `docs/integration-tests.md`
+- `docs/commons-first-python-quality-standard.md`
+- `docs/integration-playbook-romy-youtube.md`
+- `docs/k8s-sealed-secrets.md`
+- `examples/quality/python-service-template/README.md`
 
 ## License
 
