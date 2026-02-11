@@ -2,6 +2,14 @@
 
 Shared resource connections for Orchid ecosystem services and MCPs.
 
+## Install as dependency
+
+```bash
+uv add orchid-skills-commons
+# or
+pip install orchid-skills-commons
+```
+
 ## Setup
 
 This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
