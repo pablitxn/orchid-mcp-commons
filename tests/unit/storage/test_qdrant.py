@@ -245,7 +245,10 @@ class TestQdrantVectorStore:
         assert client.closed is True
         assert store.is_connected is False
 
-    async def test_delete_by_filter_uses_count_delta(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_delete_by_filter_returns_best_effort_pre_delete_count(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
         monkeypatch.setattr(qdrant_module, "_import_qdrant_models", lambda: FakeQdrantModels)
         client = FakeQdrantAsyncClient(host="qdrant.local")
         client.count_responses = [5, 2]
@@ -253,9 +256,10 @@ class TestQdrantVectorStore:
 
         deleted = await store.delete_by_filter("embeddings", {"video_id": "abc"})
 
-        assert deleted == 3
+        assert deleted == 5
         assert client.delete_calls[0][0] == "embeddings"
         assert isinstance(client.delete_calls[0][1], FakeFilterSelector)
+        assert len(client.count_calls) == 1
 
     async def test_search_error_is_translated_to_typed_exception(
         self,

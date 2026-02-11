@@ -267,6 +267,27 @@ class TestResourceSettingsFromEnv:
         assert settings.qdrant.port == 6333
         assert settings.qdrant.collection_prefix == "orchid"
 
+    def test_from_env_raises_contextual_error_for_invalid_int(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TEST_POSTGRES_DSN", "postgresql://user:pass@localhost:5432/app")
+        monkeypatch.setenv("TEST_POSTGRES_MIN_POOL_SIZE", "abc")
+
+        with pytest.raises(ValueError, match="TEST_POSTGRES_MIN_POOL_SIZE='abc'"):
+            ResourceSettings.from_env(prefix="TEST_")
+
+    def test_from_env_raises_contextual_error_for_invalid_float(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("TEST_RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
+        monkeypatch.setenv("TEST_RABBITMQ_CONNECT_TIMEOUT_SECONDS", "not-a-float")
+
+        with pytest.raises(
+            ValueError,
+            match="TEST_RABBITMQ_CONNECT_TIMEOUT_SECONDS='not-a-float'",
+        ):
+            ResourceSettings.from_env(prefix="TEST_")
+
 
 class TestMinioSettings:
     def test_local_dev_defaults(self) -> None:

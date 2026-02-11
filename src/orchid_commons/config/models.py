@@ -508,6 +508,42 @@ class ResourceSettings(BaseModel):
                 return default
             return value.strip().lower() in {"1", "true", "yes", "on"}
 
+        def _parse_int(name: str, value: str) -> int:
+            try:
+                return int(value)
+            except ValueError as exc:
+                raise ValueError(f"Invalid {prefix}{name}={value!r}: expected integer") from exc
+
+        def _parse_float(name: str, value: str) -> float:
+            try:
+                return float(value)
+            except ValueError as exc:
+                raise ValueError(f"Invalid {prefix}{name}={value!r}: expected float") from exc
+
+        def env_int(name: str, default: int) -> int:
+            value = env(name)
+            if value is None:
+                return default
+            return _parse_int(name, value)
+
+        def env_optional_int(name: str) -> int | None:
+            value = env(name)
+            if value is None:
+                return None
+            return _parse_int(name, value)
+
+        def env_float(name: str, default: float) -> float:
+            value = env(name)
+            if value is None:
+                return default
+            return _parse_float(name, value)
+
+        def env_optional_float(name: str) -> float | None:
+            value = env(name)
+            if value is None:
+                return None
+            return _parse_float(name, value)
+
         sqlite = None
         sqlite_path = env("SQLITE_DB_PATH")
         if sqlite_path:
@@ -518,31 +554,24 @@ class ResourceSettings(BaseModel):
         if postgres_dsn:
             postgres = PostgresSettings(
                 dsn=SecretStr(postgres_dsn),
-                min_pool_size=int(env("POSTGRES_MIN_POOL_SIZE") or 1),
-                max_pool_size=int(env("POSTGRES_MAX_POOL_SIZE") or 10),
-                command_timeout_seconds=float(env("POSTGRES_COMMAND_TIMEOUT_SECONDS") or 60.0),
+                min_pool_size=env_int("POSTGRES_MIN_POOL_SIZE", 1),
+                max_pool_size=env_int("POSTGRES_MAX_POOL_SIZE", 10),
+                command_timeout_seconds=env_float("POSTGRES_COMMAND_TIMEOUT_SECONDS", 60.0),
             )
 
         redis = None
         redis_url = env("REDIS_URL")
         if redis_url:
-            default_ttl = env("REDIS_DEFAULT_TTL_SECONDS")
-            socket_timeout = env("REDIS_SOCKET_TIMEOUT_SECONDS")
-            connect_timeout = env("REDIS_CONNECT_TIMEOUT_SECONDS")
             redis = RedisSettings(
                 url=SecretStr(redis_url),
                 key_prefix=env("REDIS_KEY_PREFIX") or "",
-                default_ttl_seconds=(int(default_ttl) if default_ttl is not None else None),
+                default_ttl_seconds=env_optional_int("REDIS_DEFAULT_TTL_SECONDS"),
                 encoding=env("REDIS_ENCODING") or "utf-8",
                 decode_responses=env_bool("REDIS_DECODE_RESPONSES", True),
-                socket_timeout_seconds=(
-                    float(socket_timeout) if socket_timeout is not None else None
-                ),
-                connect_timeout_seconds=(
-                    float(connect_timeout) if connect_timeout is not None else None
-                ),
-                health_check_interval_seconds=float(
-                    env("REDIS_HEALTH_CHECK_INTERVAL_SECONDS") or 15.0
+                socket_timeout_seconds=env_optional_float("REDIS_SOCKET_TIMEOUT_SECONDS"),
+                connect_timeout_seconds=env_optional_float("REDIS_CONNECT_TIMEOUT_SECONDS"),
+                health_check_interval_seconds=env_float(
+                    "REDIS_HEALTH_CHECK_INTERVAL_SECONDS", 15.0
                 ),
             )
 
@@ -553,9 +582,9 @@ class ResourceSettings(BaseModel):
             mongodb = MongoDbSettings(
                 uri=SecretStr(mongodb_uri),
                 database=mongodb_database,
-                server_selection_timeout_ms=int(env("MONGODB_SERVER_SELECTION_TIMEOUT_MS") or 2000),
-                connect_timeout_ms=int(env("MONGODB_CONNECT_TIMEOUT_MS") or 2000),
-                ping_timeout_seconds=float(env("MONGODB_PING_TIMEOUT_SECONDS") or 2.0),
+                server_selection_timeout_ms=env_int("MONGODB_SERVER_SELECTION_TIMEOUT_MS", 2000),
+                connect_timeout_ms=env_int("MONGODB_CONNECT_TIMEOUT_MS", 2000),
+                ping_timeout_seconds=env_float("MONGODB_PING_TIMEOUT_SECONDS", 2.0),
                 app_name=env("MONGODB_APP_NAME"),
             )
 
@@ -564,16 +593,16 @@ class ResourceSettings(BaseModel):
         if rabbitmq_url:
             rabbitmq = RabbitMqSettings(
                 url=SecretStr(rabbitmq_url),
-                prefetch_count=int(env("RABBITMQ_PREFETCH_COUNT") or 50),
-                connect_timeout_seconds=float(env("RABBITMQ_CONNECT_TIMEOUT_SECONDS") or 10.0),
-                heartbeat_seconds=int(env("RABBITMQ_HEARTBEAT_SECONDS") or 60),
+                prefetch_count=env_int("RABBITMQ_PREFETCH_COUNT", 50),
+                connect_timeout_seconds=env_float("RABBITMQ_CONNECT_TIMEOUT_SECONDS", 10.0),
+                heartbeat_seconds=env_int("RABBITMQ_HEARTBEAT_SECONDS", 60),
                 publisher_confirms=env_bool("RABBITMQ_PUBLISHER_CONFIRMS", True),
-                startup_retry_attempts=int(env("RABBITMQ_STARTUP_RETRY_ATTEMPTS") or 4),
-                startup_retry_initial_backoff_seconds=float(
-                    env("RABBITMQ_STARTUP_RETRY_INITIAL_BACKOFF_SECONDS") or 0.25
+                startup_retry_attempts=env_int("RABBITMQ_STARTUP_RETRY_ATTEMPTS", 4),
+                startup_retry_initial_backoff_seconds=env_float(
+                    "RABBITMQ_STARTUP_RETRY_INITIAL_BACKOFF_SECONDS", 0.25
                 ),
-                startup_retry_max_backoff_seconds=float(
-                    env("RABBITMQ_STARTUP_RETRY_MAX_BACKOFF_SECONDS") or 3.0
+                startup_retry_max_backoff_seconds=env_float(
+                    "RABBITMQ_STARTUP_RETRY_MAX_BACKOFF_SECONDS", 3.0
                 ),
             )
 
@@ -584,11 +613,11 @@ class ResourceSettings(BaseModel):
             qdrant = QdrantSettings(
                 url=qdrant_url,
                 host=qdrant_host,
-                port=int(env("QDRANT_PORT") or 6333),
-                grpc_port=int(env("QDRANT_GRPC_PORT") or 6334),
+                port=env_int("QDRANT_PORT", 6333),
+                grpc_port=env_int("QDRANT_GRPC_PORT", 6334),
                 use_ssl=env_bool("QDRANT_USE_SSL", True),
                 api_key=SecretStr(raw) if (raw := env("QDRANT_API_KEY")) else None,
-                timeout_seconds=float(env("QDRANT_TIMEOUT_SECONDS") or 10.0),
+                timeout_seconds=env_float("QDRANT_TIMEOUT_SECONDS", 10.0),
                 prefer_grpc=env_bool("QDRANT_PREFER_GRPC", False),
                 collection_prefix=env("QDRANT_COLLECTION_PREFIX") or "",
             )
@@ -629,9 +658,9 @@ class ResourceSettings(BaseModel):
         if postgres_dsn:
             pgvector = PgVectorSettings(
                 table=env("PGVECTOR_TABLE") or "embeddings",
-                dimensions=int(env("PGVECTOR_DIMENSIONS") or 1536),
+                dimensions=env_int("PGVECTOR_DIMENSIONS", 1536),
                 distance_metric=env("PGVECTOR_DISTANCE_METRIC") or "cosine",
-                ivfflat_lists=int(env("PGVECTOR_IVFFLAT_LISTS") or 100),
+                ivfflat_lists=env_int("PGVECTOR_IVFFLAT_LISTS", 100),
             )
 
         multi_bucket = None

@@ -374,7 +374,7 @@ Use this baseline when implementing or migrating Orchid Python services
 
 - `upsert(collection_name, points) -> int`
 - `search(collection_name, query_vector, *, limit=10, filters=None, score_threshold=None, with_payload=True, with_vectors=False) -> list[VectorSearchResult]`
-- `delete(collection_name, *, ids=None, filters=None) -> int`
+- `delete(collection_name, *, ids=None, filters=None) -> int` (for `filters`, returns best-effort pre-delete match count)
 - `count(collection_name, *, filters=None) -> int`
 - `health_check() -> HealthStatus`
 - `close() -> None`

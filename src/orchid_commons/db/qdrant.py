@@ -566,7 +566,14 @@ class QdrantVectorStore(ObservableMixin):
         ids: Sequence[int | str] | None = None,
         filters: Mapping[str, Any] | None = None,
     ) -> int:
-        """Delete points by ids or filters and return removed count."""
+        """Delete points by ids or filters.
+
+        Returns:
+            - Exact removed count when deleting explicit ``ids``.
+            - Best-effort pre-delete match count when deleting by ``filters``.
+              Qdrant delete responses do not expose an exact removed-count, and
+              computing a ``before/after`` delta is race-prone under concurrency.
+        """
         if ids is not None and filters is not None:
             raise VectorValidationError(
                 operation="delete",
@@ -604,7 +611,6 @@ class QdrantVectorStore(ObservableMixin):
                 collection_name=scoped_collection,
                 points_selector=models.FilterSelector(filter=qdrant_filter),
             )
-            count_after = await self.count(collection_name, filters=filters)
         except Exception as exc:
             translated = _translate_qdrant_error(
                 operation="delete",
@@ -615,7 +621,7 @@ class QdrantVectorStore(ObservableMixin):
             raise translated from exc
 
         self._observe_operation("delete", started, success=True)
-        return max(0, count_before - count_after)
+        return max(0, count_before)
 
     async def delete_ids(self, collection_name: str, ids: list[int | str]) -> int:
         """Compatibility wrapper: delete points by id."""
@@ -626,7 +632,7 @@ class QdrantVectorStore(ObservableMixin):
         collection_name: str,
         filters: Mapping[str, Any],
     ) -> int:
-        """Delete points matching filters."""
+        """Delete points matching filters and return best-effort pre-delete count."""
         return await self.delete(collection_name, filters=filters)
 
     async def count(
