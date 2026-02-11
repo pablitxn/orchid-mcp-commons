@@ -192,8 +192,8 @@ class MinioSettings(BaseModel):
         warnings.warn("local_dev() is intended for local development only.", stacklevel=2)
         return cls(
             endpoint=endpoint,
-            access_key=access_key,
-            secret_key=secret_key,
+            access_key=SecretStr(access_key),
+            secret_key=SecretStr(secret_key),
             bucket=bucket,
             create_bucket_if_missing=create_bucket_if_missing,
             secure=secure,
@@ -436,8 +436,8 @@ class MultiBucketSettings(BaseModel):
         default_buckets = buckets or {"default": "orchid-dev"}
         return cls(
             endpoint=endpoint,
-            access_key=access_key,
-            secret_key=secret_key,
+            access_key=SecretStr(access_key),
+            secret_key=SecretStr(secret_key),
             buckets=default_buckets,
             create_buckets_if_missing=create_buckets_if_missing,
             secure=secure,
@@ -500,7 +500,7 @@ class ResourceSettings(BaseModel):
         postgres_dsn = env("POSTGRES_DSN")
         if postgres_dsn:
             postgres = PostgresSettings(
-                dsn=postgres_dsn,
+                dsn=SecretStr(postgres_dsn),
                 min_pool_size=int(env("POSTGRES_MIN_POOL_SIZE") or 1),
                 max_pool_size=int(env("POSTGRES_MAX_POOL_SIZE") or 10),
                 command_timeout_seconds=float(env("POSTGRES_COMMAND_TIMEOUT_SECONDS") or 60.0),
@@ -513,7 +513,7 @@ class ResourceSettings(BaseModel):
             socket_timeout = env("REDIS_SOCKET_TIMEOUT_SECONDS")
             connect_timeout = env("REDIS_CONNECT_TIMEOUT_SECONDS")
             redis = RedisSettings(
-                url=redis_url,
+                url=SecretStr(redis_url),
                 key_prefix=env("REDIS_KEY_PREFIX") or "",
                 default_ttl_seconds=(int(default_ttl) if default_ttl is not None else None),
                 encoding=env("REDIS_ENCODING") or "utf-8",
@@ -534,7 +534,7 @@ class ResourceSettings(BaseModel):
         mongodb_database = env("MONGODB_DATABASE")
         if mongodb_uri and mongodb_database:
             mongodb = MongoDbSettings(
-                uri=mongodb_uri,
+                uri=SecretStr(mongodb_uri),
                 database=mongodb_database,
                 server_selection_timeout_ms=int(
                     env("MONGODB_SERVER_SELECTION_TIMEOUT_MS") or 2000
@@ -548,7 +548,7 @@ class ResourceSettings(BaseModel):
         rabbitmq_url = env("RABBITMQ_URL")
         if rabbitmq_url:
             rabbitmq = RabbitMqSettings(
-                url=rabbitmq_url,
+                url=SecretStr(rabbitmq_url),
                 prefetch_count=int(env("RABBITMQ_PREFETCH_COUNT") or 50),
                 connect_timeout_seconds=float(env("RABBITMQ_CONNECT_TIMEOUT_SECONDS") or 10.0),
                 heartbeat_seconds=int(env("RABBITMQ_HEARTBEAT_SECONDS") or 60),
@@ -565,7 +565,7 @@ class ResourceSettings(BaseModel):
                 port=int(env("QDRANT_PORT") or 6333),
                 grpc_port=int(env("QDRANT_GRPC_PORT") or 6334),
                 use_ssl=env_bool("QDRANT_USE_SSL", True),
-                api_key=env("QDRANT_API_KEY"),
+                api_key=SecretStr(raw) if (raw := env("QDRANT_API_KEY")) else None,
                 timeout_seconds=float(env("QDRANT_TIMEOUT_SECONDS") or 10.0),
                 prefer_grpc=env_bool("QDRANT_PREFER_GRPC", False),
                 collection_prefix=env("QDRANT_COLLECTION_PREFIX") or "",
@@ -578,8 +578,8 @@ class ResourceSettings(BaseModel):
         if minio_endpoint and minio_access_key and minio_secret_key:
             minio = MinioSettings(
                 endpoint=minio_endpoint,
-                access_key=minio_access_key,
-                secret_key=minio_secret_key,
+                access_key=SecretStr(minio_access_key),
+                secret_key=SecretStr(minio_secret_key),
                 bucket=env("MINIO_BUCKET") or "orchid",
                 create_bucket_if_missing=env_bool("MINIO_CREATE_BUCKET_IF_MISSING", False),
                 secure=env_bool("MINIO_SECURE", True),
@@ -595,8 +595,8 @@ class ResourceSettings(BaseModel):
             r2 = R2Settings(
                 account_id=r2_account_id,
                 endpoint=r2_endpoint,
-                access_key=r2_access_key,
-                secret_key=r2_secret_key,
+                access_key=SecretStr(r2_access_key),
+                secret_key=SecretStr(r2_secret_key),
                 bucket=env("R2_BUCKET") or "orchid",
                 create_bucket_if_missing=env_bool("R2_CREATE_BUCKET_IF_MISSING", False),
                 secure=env_bool("R2_SECURE", True),
@@ -621,8 +621,8 @@ class ResourceSettings(BaseModel):
             buckets = json.loads(mb_buckets_json)
             multi_bucket = MultiBucketSettings(
                 endpoint=mb_endpoint,
-                access_key=mb_access_key,
-                secret_key=mb_secret_key,
+                access_key=SecretStr(mb_access_key),
+                secret_key=SecretStr(mb_secret_key),
                 buckets=buckets,
                 create_buckets_if_missing=env_bool(
                     "MULTI_BUCKET_CREATE_BUCKETS_IF_MISSING", False

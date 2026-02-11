@@ -108,6 +108,8 @@ module = [
   "opentelemetry.*",
   "langfuse",
   "langfuse.*",
+  "starlette",
+  "starlette.*",
 ]
 ignore_missing_imports = true
 

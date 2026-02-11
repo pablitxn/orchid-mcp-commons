@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from time import perf_counter
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
     from orchid_commons.observability.metrics import MetricsRecorder
@@ -20,17 +20,22 @@ class ObservableMixin:
     ``ClassVar[str]`` for ``_resource_name`` in the latter case).
     """
 
-    _resource_name: str
+    _resource_name: ClassVar[str]
     _metrics: MetricsRecorder | None
+    _resource_name_override: str | None
 
     def _metrics_recorder(self) -> MetricsRecorder:
         from orchid_commons.observability.metrics import get_metrics_recorder
 
         return get_metrics_recorder() if self._metrics is None else self._metrics
 
+    def _resolved_resource_name(self) -> str:
+        override = getattr(self, "_resource_name_override", None)
+        return override if override is not None else self._resource_name
+
     def _observe_operation(self, operation: str, started: float, *, success: bool) -> None:
         self._metrics_recorder().observe_operation(
-            resource=self._resource_name,
+            resource=self._resolved_resource_name(),
             operation=operation,
             duration_seconds=perf_counter() - started,
             success=success,
@@ -39,7 +44,7 @@ class ObservableMixin:
     def _observe_error(self, operation: str, started: float, exc: Exception) -> None:
         self._observe_operation(operation, started, success=False)
         self._metrics_recorder().observe_error(
-            resource=self._resource_name,
+            resource=self._resolved_resource_name(),
             operation=operation,
             error_type=type(exc).__name__,
         )

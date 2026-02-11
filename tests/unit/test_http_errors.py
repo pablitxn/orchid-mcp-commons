@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-import orchid_commons.observability.http_errors as http_errors_mod
 from orchid_commons.observability.http_errors import (
     APIError,
     ErrorResponse,
@@ -18,9 +17,8 @@ from orchid_commons.observability.http_errors import (
     _resolve_request_id,
     create_fastapi_error_middleware,
 )
-from orchid_commons.observability.logging import correlation_scope, get_correlation_ids
+from orchid_commons.observability.logging import correlation_scope
 from orchid_commons.runtime.errors import OrchidCommonsError
-
 
 # ---------------------------------------------------------------------------
 # Fakes (reuse pattern from test_observability_http)

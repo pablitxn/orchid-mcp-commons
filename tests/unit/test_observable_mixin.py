@@ -12,7 +12,6 @@ import pytest
 from orchid_commons.observability._observable import ObservableMixin
 from orchid_commons.observability.metrics import NoopMetricsRecorder
 
-
 # ── Plain class subclass ──────────────────────────────────────────────
 
 

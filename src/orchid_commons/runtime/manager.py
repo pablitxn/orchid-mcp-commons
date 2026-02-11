@@ -410,7 +410,7 @@ async def bootstrap_resources(
     )
 
     errors: list[BaseException] = []
-    for (name, _), result in zip(to_init, results):
+    for (name, _), result in zip(to_init, results, strict=True):
         if isinstance(result, BaseException):
             errors.append(result)
         else:
