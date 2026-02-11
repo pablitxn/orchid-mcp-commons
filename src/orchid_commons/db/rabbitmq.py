@@ -36,11 +36,6 @@ class BrokerOperationError(BrokerError):
     """Raised for non-transient broker failures."""
 
 
-_CREATE_MAX_ATTEMPTS = 3
-_CREATE_INITIAL_BACKOFF_SECONDS = 0.25
-_CREATE_MAX_BACKOFF_SECONDS = 2.0
-
-
 def _import_aio_pika() -> Any:
     try:
         import aio_pika
@@ -76,10 +71,15 @@ def _translate_broker_error(*, operation: str, exc: Exception) -> BrokerError:
     return BrokerOperationError(operation, message)
 
 
-def _startup_backoff_seconds(attempt: int) -> float:
+def _startup_backoff_seconds(
+    *,
+    attempt: int,
+    initial_backoff_seconds: float,
+    max_backoff_seconds: float,
+) -> float:
     return min(
-        _CREATE_MAX_BACKOFF_SECONDS,
-        _CREATE_INITIAL_BACKOFF_SECONDS * (2 ** (attempt - 1)),
+        max_backoff_seconds,
+        initial_backoff_seconds * (2 ** (attempt - 1)),
     )
 
 
@@ -109,7 +109,7 @@ class RabbitMqBroker(ObservableMixin):
     async def create(cls, settings: RabbitMqSettings) -> RabbitMqBroker:
         """Create and validate a RabbitMQ broker from settings."""
         aio_pika = _import_aio_pika()
-        for attempt in range(1, _CREATE_MAX_ATTEMPTS + 1):
+        for attempt in range(1, settings.startup_retry_attempts + 1):
             connection: Any | None = None
             channel: Any | None = None
             try:
@@ -137,9 +137,18 @@ class RabbitMqBroker(ObservableMixin):
                 translated = _translate_broker_error(operation="create", exc=exc)
                 await _close_quietly(channel)
                 await _close_quietly(connection)
-                if not isinstance(translated, BrokerTransientError) or attempt >= _CREATE_MAX_ATTEMPTS:
+                if (
+                    not isinstance(translated, BrokerTransientError)
+                    or attempt >= settings.startup_retry_attempts
+                ):
                     raise translated from exc
-                await asyncio.sleep(_startup_backoff_seconds(attempt))
+                await asyncio.sleep(
+                    _startup_backoff_seconds(
+                        attempt=attempt,
+                        initial_backoff_seconds=settings.startup_retry_initial_backoff_seconds,
+                        max_backoff_seconds=settings.startup_retry_max_backoff_seconds,
+                    )
+                )
 
         raise BrokerTransientError("create", "RabbitMQ startup exhausted retry attempts")
 

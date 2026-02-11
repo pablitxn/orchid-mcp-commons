@@ -218,7 +218,7 @@ class TestMongoDbResource:
         fake_motor = FakeMotorAsyncioModule(client)
         monkeypatch.setattr(mongodb_module, "_import_motor_asyncio", lambda: fake_motor)
 
-        with pytest.raises(mongodb_module.DocumentTransientError, match="create"):
+        with pytest.raises(mongodb_module.DocumentTransientError, match="ping"):
             await create_mongodb_resource(
                 MongoDbSettings(
                     uri="mongodb://localhost:27017",
@@ -241,7 +241,7 @@ class TestMongoDbResource:
         status = await resource.health_check()
 
         assert status.healthy is False
-        assert status.details == {"error_type": "RuntimeError", "database": "orchid"}
+        assert status.details == {"error_type": "DocumentOperationError", "database": "orchid"}
 
     async def test_count(self) -> None:
         database = FakeDatabase()

@@ -163,16 +163,15 @@ class TestRabbitMqBroker:
         monkeypatch.setattr(rabbitmq_module, "_import_aio_pika", lambda: fake_aio_pika)
         monkeypatch.setattr(rabbitmq_module.asyncio, "sleep", fake_sleep)
 
-        broker = await create_rabbitmq_broker(
-            RabbitMqSettings(
-                url="amqp://guest:guest@localhost:5672/",
-                prefetch_count=1,
-            )
+        settings = RabbitMqSettings(
+            url="amqp://guest:guest@localhost:5672/",
+            prefetch_count=1,
         )
+        broker = await create_rabbitmq_broker(settings)
         await broker.close()
 
         assert len(fake_aio_pika.connect_calls) == 2
-        assert sleep_calls == [rabbitmq_module._CREATE_INITIAL_BACKOFF_SECONDS]
+        assert sleep_calls == [settings.startup_retry_initial_backoff_seconds]
 
     async def test_create_translates_auth_error_without_retry(
         self,

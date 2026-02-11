@@ -121,8 +121,9 @@ class MongoDbResource(ObservableMixin):
                 timeout=self.ping_timeout_seconds,
             )
         except Exception as exc:
-            self._observe_error("ping", started, exc)
-            raise
+            translated = _translate_mongo_error(operation="ping", collection=None, exc=exc)
+            self._observe_error("ping", started, translated)
+            raise translated from exc
 
         self._observe_operation("ping", started, success=True)
         return True
